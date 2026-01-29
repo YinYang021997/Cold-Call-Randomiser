@@ -1,28 +1,31 @@
 # Cold Call Randomizer
 
-A web application for professors to manage classes, randomly select students for cold calling with a slot-machine animation, track call history with scoring, and view student performance statistics.
+A web application for professors to manage classes, randomly select students for cold calling with an interactive grid-based animation, track call history with scoring, and view student performance statistics.
 
 ## Features
 
 - **Secure Authentication**: Email/password authentication with bcrypt password hashing
 - **Password Reset**: Email-based password reset flow with secure tokens
-- **Class Management**: Create and manage multiple classes with student rosters
+- **Class Management**: Create, edit, and manage multiple classes with student rosters
 - **CSV Import**: Bulk upload students via CSV files
-- **Slot Machine Animation**: Randomly select students with an engaging animation
+- **Add Students Anytime**: Add students to existing classes via CSV or manual entry
+- **Grid-Based Random Picker**: Students displayed in a grid with cell-hopping animation that randomly highlights names before selection
+- **Confetti Celebration**: Celebratory confetti animation when a student is selected
 - **Call History**: Track all cold calls with timestamps
-- **Student Scoring**: Rate student performance from -2 to +2
+- **Student Scoring**: Rate student performance from -2 to +2 with instant local updates and auto-save
 - **Statistics Dashboard**: View cumulative scores, average scores, and call frequency per student
-- **Responsive Design**: Clean, professional UI built with Tailwind CSS
+- **Material Design UI**: Clean, professional interface built with Material UI (MUI)
 
 ## Tech Stack
 
 - **Framework**: Next.js 14+ (App Router)
 - **Language**: TypeScript
-- **Styling**: Tailwind CSS
+- **Styling**: Material UI (MUI) + Emotion
 - **Database**: SQLite (development) / PostgreSQL (production)
 - **ORM**: Prisma
 - **Authentication**: Custom JWT-based sessions with bcrypt
 - **Email**: Nodemailer (SMTP)
+- **Animations**: canvas-confetti
 
 ## Prerequisites
 
@@ -85,10 +88,10 @@ This command will:
 3. Seed the admin user
 
 **Default Admin Credentials:**
-- Email: `stephen.zeldes@gsb.columbia.edu`
+- Email: `anmolbongirwar@gmail.com`
 - Password: `1234`
 
-⚠️ **SECURITY WARNING**: The default password is `1234`. **You MUST change this immediately** after first login for security reasons!
+⚠️ **SECURITY WARNING**: The default password is `1234`. **Change this immediately** after first login for production use!
 
 ### 4. Start the Development Server
 
@@ -127,10 +130,26 @@ The application will be available at [http://localhost:3000](http://localhost:30
    - Code (e.g., "FIN101")
    - Timing (e.g., "Weds 10:10–11:30")
    - Dates (e.g., "Jan 22 – May 2, 2026")
-3. Add students:
+3. Optionally add students during creation:
    - **CSV Upload**: Upload a CSV file with columns: `name`, `uni`
    - **Manual Entry**: Click "Add Student Manually" and fill in details
 4. Click "Create Class"
+
+### Editing a Class
+
+1. Navigate to the class detail page
+2. Click the "Edit Class" button
+3. Modify any class details (name, classroom, code, timing, dates, status)
+4. Click "Save Changes"
+
+### Adding Students to an Existing Class
+
+1. Navigate to the class detail page
+2. Click the "Add Students" button
+3. Add students via:
+   - **CSV Upload**: Upload a CSV file with `name` and `uni` columns
+   - **Manual Entry**: Click "Add Student Manually" for each student
+4. Click "Add Students" to save
 
 ### CSV Format
 
@@ -147,16 +166,22 @@ Bob Johnson,bj9012
 
 1. Click on a class from the home page
 2. Go to the "Cold Call" tab
-3. Click "Spin & Pick" to randomly select a student
-4. The slot machine will animate and select a student
-5. The selection is automatically saved to the history
+3. All students are displayed in a compact grid
+4. Click "Spin & Pick" to randomly select a student
+5. The grid will animate with cells randomly highlighting (cell-hopping animation)
+6. The animation slows down and lands on the selected student
+7. Confetti celebration appears when a student is selected
+8. The selected student's cell turns green with a banner showing their name
+9. The selection is automatically saved to the history
 
 ### Scoring Students
 
 1. Navigate to the "History" tab
 2. Each cold call has score buttons: -2, -1, 0, +1, +2
 3. Click a score to assign it to that cold call
-4. Scores are saved immediately
+4. Scores update instantly in the UI (local state)
+5. Changes are automatically saved to the server after 2 seconds of inactivity
+6. Changes also save when switching browser tabs or leaving the page
 
 ### Viewing Statistics
 
@@ -249,18 +274,24 @@ cold-call-randomizer/
 │   │       ├── new/         # Create class
 │   │       └── [classId]/   # Class detail
 │   │           ├── page.tsx # Cold call & history
+│   │           ├── edit/    # Edit class
+│   │           ├── add-students/ # Add students
 │   │           └── stats/   # Statistics
 │   ├── layout.tsx
 │   └── globals.css
 ├── components/              # React components
-│   ├── ClassDetail.tsx
-│   ├── SlotMachine.tsx
-│   ├── HistoryTab.tsx
+│   ├── ClassDetail.tsx     # Class detail with tabs
+│   ├── SlotMachine.tsx     # Grid-based random picker
+│   ├── HistoryTab.tsx      # Cold call history with scoring
+│   ├── StatsPage.tsx       # Statistics display
+│   ├── HomePage.tsx        # Classes list
+│   ├── ThemeRegistry.tsx   # MUI theme provider
 │   └── LogoutButton.tsx
 ├── lib/                     # Utilities
 │   ├── auth.ts             # Authentication logic
 │   ├── db.ts               # Prisma client
 │   ├── email.ts            # Email sending
+│   ├── theme.ts            # MUI theme configuration
 │   └── validators.ts       # Zod schemas
 ├── prisma/
 │   ├── schema.prisma       # Database schema
@@ -291,21 +322,31 @@ cold-call-randomizer/
 - [ ] View all classes on home page
 - [ ] Verify student count is correct for each class
 - [ ] Upload malformed CSV (should show error)
+- [ ] Edit an existing class
+- [ ] Change class status to Archived
+- [ ] Add students to an existing class via CSV
+- [ ] Add students to an existing class manually
 
 ### Cold Call Tests
 
-- [ ] Spin the slot machine
-- [ ] Verify student is randomly selected
-- [ ] Verify selection appears in history
-- [ ] Spin multiple times and verify randomness
+- [ ] Verify all students appear in the grid layout
+- [ ] Click "Spin & Pick" to start the animation
+- [ ] Verify cell-hopping animation highlights random cells
+- [ ] Verify animation slows down before final selection
+- [ ] Verify selected student's cell turns green
 - [ ] Verify confetti animation appears
+- [ ] Verify selected student banner appears
+- [ ] Verify selection is saved to history
+- [ ] Spin multiple times and verify randomness
 
 ### Scoring Tests
 
 - [ ] Score a cold call with -2, -1, 0, +1, +2
+- [ ] Verify score button highlights immediately on click
 - [ ] Change an existing score
-- [ ] Clear a score
-- [ ] Verify scores update immediately (optimistic UI)
+- [ ] Clear a score using the Clear button
+- [ ] Verify scores persist after switching tabs
+- [ ] Verify scores persist after page refresh (auto-save)
 
 ### Statistics Tests
 
