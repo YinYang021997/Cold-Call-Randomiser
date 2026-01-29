@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Box,
   Container,
@@ -13,6 +13,8 @@ import {
   Tab,
   Grid,
   Chip,
+  CircularProgress,
+  Backdrop,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -57,19 +59,45 @@ interface ClassDetailProps {
 
 export function ClassDetail({ classData }: ClassDetailProps) {
   const [activeTab, setActiveTab] = useState(0);
+  const [navigating, setNavigating] = useState(false);
+  const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
+  const router = useRouter();
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    setActiveTab(newValue);
+    if (newValue === 2) {
+      // Stats tab - navigate to stats page
+      setNavigating(true);
+      setNavigatingTo('stats');
+      router.push(`/classes/${classData.id}/stats`);
+    } else {
+      setActiveTab(newValue);
+    }
+  };
+
+  const handleNavigation = (destination: string, path: string) => {
+    setNavigating(true);
+    setNavigatingTo(destination);
+    router.push(path);
   };
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', py: 4 }}>
+      <Backdrop
+        sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}
+        open={navigating}
+      >
+        <CircularProgress color="inherit" />
+      </Backdrop>
+
       <Container maxWidth="xl">
-        <Link href="/" style={{ textDecoration: 'none' }}>
-          <Button startIcon={<ArrowBackIcon />} sx={{ mb: 3 }}>
-            Back to Classes
-          </Button>
-        </Link>
+        <Button
+          startIcon={navigatingTo === 'home' ? <CircularProgress size={20} color="inherit" /> : <ArrowBackIcon />}
+          sx={{ mb: 3 }}
+          onClick={() => handleNavigation('home', '/')}
+          disabled={navigating}
+        >
+          Back to Classes
+        </Button>
 
         <Card elevation={3} sx={{ mb: 3 }}>
           <CardContent>
@@ -85,16 +113,23 @@ export function ClassDetail({ classData }: ClassDetailProps) {
                 />
               </Box>
               <Box sx={{ display: 'flex', gap: 2 }}>
-                <Link href={`/classes/${classData.id}/edit`} style={{ textDecoration: 'none' }}>
-                  <Button variant="outlined" startIcon={<EditIcon />}>
-                    Edit Class
-                  </Button>
-                </Link>
-                <Link href={`/classes/${classData.id}/add-students`} style={{ textDecoration: 'none' }}>
-                  <Button variant="contained" color="success" startIcon={<PersonAddIcon />}>
-                    Add Students
-                  </Button>
-                </Link>
+                <Button
+                  variant="outlined"
+                  startIcon={navigatingTo === 'edit' ? <CircularProgress size={20} /> : <EditIcon />}
+                  onClick={() => handleNavigation('edit', `/classes/${classData.id}/edit`)}
+                  disabled={navigating}
+                >
+                  Edit Class
+                </Button>
+                <Button
+                  variant="contained"
+                  color="success"
+                  startIcon={navigatingTo === 'add-students' ? <CircularProgress size={20} color="inherit" /> : <PersonAddIcon />}
+                  onClick={() => handleNavigation('add-students', `/classes/${classData.id}/add-students`)}
+                  disabled={navigating}
+                >
+                  Add Students
+                </Button>
               </Box>
             </Box>
 
@@ -122,14 +157,13 @@ export function ClassDetail({ classData }: ClassDetailProps) {
         <Card elevation={3}>
           <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
             <Tabs value={activeTab} onChange={handleTabChange}>
-              <Tab icon={<CasinoIcon />} iconPosition="start" label="Cold Call" />
-              <Tab icon={<HistoryIcon />} iconPosition="start" label="History" />
+              <Tab icon={<CasinoIcon />} iconPosition="start" label="Cold Call" disabled={navigating} />
+              <Tab icon={<HistoryIcon />} iconPosition="start" label="History" disabled={navigating} />
               <Tab
-                icon={<AnalyticsIcon />}
+                icon={navigatingTo === 'stats' ? <CircularProgress size={20} /> : <AnalyticsIcon />}
                 iconPosition="start"
                 label="Stats"
-                component={Link}
-                href={`/classes/${classData.id}/stats`}
+                disabled={navigating}
               />
             </Tabs>
           </Box>

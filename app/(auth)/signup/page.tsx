@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Box,
@@ -13,36 +13,57 @@ import {
   Alert,
   Container,
   CircularProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Grid,
 } from '@mui/material';
 import { School as SchoolIcon } from '@mui/icons-material';
-import { loginAction } from './actions';
+import { signupAction } from './actions';
 
-export default function LoginPage() {
+export default function SignupPage() {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [role, setRole] = useState('TEACHER');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (password.length < 4) {
+      setError('Password must be at least 4 characters');
+      return;
+    }
+
     setLoading(true);
 
     try {
       const formData = new FormData();
+      formData.append('firstName', firstName);
+      formData.append('lastName', lastName);
       formData.append('email', email);
       formData.append('password', password);
+      formData.append('role', role);
 
-      const result = await loginAction(formData);
+      const result = await signupAction(formData);
 
       if (result.error) {
         setError(result.error);
         setLoading(false);
       } else {
-        const redirect = searchParams.get('redirect') || '/';
-        router.push(redirect);
+        router.push('/');
         router.refresh();
       }
     } catch (err) {
@@ -59,6 +80,7 @@ export default function LoginPage() {
         alignItems: 'center',
         justifyContent: 'center',
         bgcolor: 'background.default',
+        py: 4,
       }}
     >
       <Container maxWidth="sm">
@@ -70,7 +92,7 @@ export default function LoginPage() {
                 Cold Call Randomizer
               </Typography>
               <Typography variant="body1" color="text.secondary">
-                Sign in to your account
+                Create your account
               </Typography>
             </Box>
 
@@ -81,6 +103,45 @@ export default function LoginPage() {
             )}
 
             <Box component="form" onSubmit={handleSubmit}>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    id="firstName"
+                    label="First Name"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    required
+                    autoComplete="given-name"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    id="lastName"
+                    label="Last Name"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    required
+                    autoComplete="family-name"
+                  />
+                </Grid>
+              </Grid>
+
+              <FormControl fullWidth sx={{ mt: 2 }}>
+                <InputLabel id="role-label">Role</InputLabel>
+                <Select
+                  labelId="role-label"
+                  id="role"
+                  value={role}
+                  label="Role"
+                  onChange={(e) => setRole(e.target.value)}
+                >
+                  <MenuItem value="TEACHER">Teacher</MenuItem>
+                  <MenuItem value="TA">Teaching Assistant (TA)</MenuItem>
+                </Select>
+              </FormControl>
+
               <TextField
                 fullWidth
                 id="email"
@@ -90,7 +151,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
-                sx={{ mb: 2 }}
+                sx={{ mt: 2 }}
               />
 
               <TextField
@@ -101,8 +162,20 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                autoComplete="current-password"
-                sx={{ mb: 3 }}
+                autoComplete="new-password"
+                sx={{ mt: 2 }}
+              />
+
+              <TextField
+                fullWidth
+                id="confirmPassword"
+                label="Confirm Password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                autoComplete="new-password"
+                sx={{ mt: 2, mb: 3 }}
               />
 
               <Button
@@ -116,33 +189,21 @@ export default function LoginPage() {
                 {loading ? (
                   <CircularProgress size={24} color="inherit" />
                 ) : (
-                  'Sign In'
+                  'Sign Up'
                 )}
               </Button>
 
               <Box sx={{ textAlign: 'center' }}>
-                <Link href="/forgot-password" style={{ textDecoration: 'none' }}>
-                  <Typography
-                    variant="body2"
-                    color="primary"
-                    sx={{ '&:hover': { textDecoration: 'underline' } }}
-                  >
-                    Forgot your password?
-                  </Typography>
-                </Link>
-              </Box>
-
-              <Box sx={{ textAlign: 'center', mt: 2 }}>
                 <Typography variant="body2" color="text.secondary">
-                  Don't have an account?{' '}
-                  <Link href="/signup" style={{ textDecoration: 'none' }}>
+                  Already have an account?{' '}
+                  <Link href="/login" style={{ textDecoration: 'none' }}>
                     <Typography
                       component="span"
                       variant="body2"
                       color="primary"
                       sx={{ '&:hover': { textDecoration: 'underline' } }}
                     >
-                      Sign up
+                      Sign in
                     </Typography>
                   </Link>
                 </Typography>

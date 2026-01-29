@@ -5,11 +5,14 @@ import { prisma } from '@/lib/db';
 import { studentsArraySchema } from '@/lib/validators';
 
 export async function getClassNameAction(classId: string) {
-  await requireAuth();
+  const session = await requireAuth();
 
   try {
     const classData = await prisma.class.findUnique({
-      where: { id: classId },
+      where: {
+        id: classId,
+        userId: session.userId,
+      },
       select: { name: true },
     });
 
@@ -28,7 +31,7 @@ export async function addStudentsAction(
   classId: string,
   students: { name: string; uni: string }[]
 ) {
-  await requireAuth();
+  const session = await requireAuth();
 
   // Validate students
   const validation = studentsArraySchema.safeParse(students);
@@ -42,9 +45,12 @@ export async function addStudentsAction(
   }
 
   try {
-    // Verify class exists
+    // Verify class exists and belongs to user
     const classExists = await prisma.class.findUnique({
-      where: { id: classId },
+      where: {
+        id: classId,
+        userId: session.userId,
+      },
     });
 
     if (!classExists) {

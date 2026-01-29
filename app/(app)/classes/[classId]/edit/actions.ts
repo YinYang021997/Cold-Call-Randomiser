@@ -8,25 +8,38 @@ interface UpdateClassData {
   name: string;
   classroom: string;
   code: string;
-  timing: string;
-  dates: string;
-  status: 'ACTIVE' | 'ARCHIVED';
+  startTime: string;
+  endTime: string;
+  startDate: string;
+  endDate: string;
 }
 
 export async function getClassAction(classId: string) {
-  await requireAuth();
+  const session = await requireAuth();
 
   try {
     const classData = await prisma.class.findUnique({
-      where: { id: classId },
+      where: {
+        id: classId,
+        userId: session.userId,
+      },
       select: {
         id: true,
         name: true,
         classroom: true,
         code: true,
-        timing: true,
-        dates: true,
-        status: true,
+        startTime: true,
+        endTime: true,
+        startDate: true,
+        endDate: true,
+        students: {
+          select: {
+            id: true,
+            name: true,
+            uni: true,
+          },
+          orderBy: { name: 'asc' },
+        },
       },
     });
 
@@ -42,16 +55,17 @@ export async function getClassAction(classId: string) {
 }
 
 export async function updateClassAction(classId: string, data: UpdateClassData) {
-  await requireAuth();
+  const session = await requireAuth();
 
   // Validate class data
   const validation = createClassSchema.safeParse({
     name: data.name,
     classroom: data.classroom,
     code: data.code,
-    timing: data.timing,
-    dates: data.dates,
-    status: data.status,
+    startTime: data.startTime,
+    endTime: data.endTime,
+    startDate: data.startDate,
+    endDate: data.endDate,
   });
 
   if (!validation.success) {
@@ -60,14 +74,18 @@ export async function updateClassAction(classId: string, data: UpdateClassData) 
 
   try {
     await prisma.class.update({
-      where: { id: classId },
+      where: {
+        id: classId,
+        userId: session.userId,
+      },
       data: {
         name: data.name,
         classroom: data.classroom,
         code: data.code,
-        timing: data.timing,
-        dates: data.dates,
-        status: data.status,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        startDate: new Date(data.startDate),
+        endDate: new Date(data.endDate),
       },
     });
 
@@ -75,5 +93,45 @@ export async function updateClassAction(classId: string, data: UpdateClassData) 
   } catch (error) {
     console.error('Error updating class:', error);
     return { error: 'Failed to update class. Please try again.' };
+  }
+}
+
+export async function removeStudentAction(classId: string, studentId: string) {
+  const session = await requireAuth();
+
+  try {
+    // Verify class belongs to user
+    const classData = await prisma.class.findUnique({
+      where: {
+        id: classId,
+        userId: session.userId,
+      },
+    });
+
+    if (!classData) {
+      return { error: 'Class not found' };
+    }
+
+    // Verify student belongs to this class
+    const student = await prisma.student.findUnique({
+      where: {
+        id: studentId,
+        classId: classId,
+      },
+    });
+
+    if (!student) {
+      return { error: 'Student not found' };
+    }
+
+    // Delete the student (this will cascade delete their cold calls)
+    await prisma.student.delete({
+      where: { id: studentId },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error removing student:', error);
+    return { error: 'Failed to remove student. Please try again.' };
   }
 }

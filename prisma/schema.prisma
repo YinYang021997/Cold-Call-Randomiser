@@ -14,25 +14,33 @@ model User {
   id                   String                @id @default(cuid())
   email                String                @unique
   passwordHash         String
+  firstName            String
+  lastName             String
+  role                 String                @default("TEACHER") // TEACHER or TA
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   passwordResetTokens  PasswordResetToken[]
+  classes              Class[]
 }
 
 model Class {
   id         String       @id @default(cuid())
+  userId     String
   name       String
   classroom  String
   code       String
-  timing     String
-  dates      String
-  status     String       @default("ACTIVE")
+  startTime  String       // HH:mm format
+  endTime    String       // HH:mm format
+  startDate  DateTime
+  endDate    DateTime
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   students   Student[]
   coldCalls  ColdCall[]
 
-  @@index([status])
+  @@index([userId])
+  @@index([endDate])
 }
 
 model Student {

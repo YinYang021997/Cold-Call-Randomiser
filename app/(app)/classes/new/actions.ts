@@ -8,23 +8,25 @@ interface CreateClassData {
   name: string;
   classroom: string;
   code: string;
-  timing: string;
-  dates: string;
-  status: 'ACTIVE' | 'ARCHIVED';
+  startTime: string;
+  endTime: string;
+  startDate: string;
+  endDate: string;
   students: { name: string; uni: string }[];
 }
 
 export async function createClassAction(data: CreateClassData) {
-  await requireAuth();
+  const session = await requireAuth();
 
   // Validate class data
   const classValidation = createClassSchema.safeParse({
     name: data.name,
     classroom: data.classroom,
     code: data.code,
-    timing: data.timing,
-    dates: data.dates,
-    status: data.status,
+    startTime: data.startTime,
+    endTime: data.endTime,
+    startDate: data.startDate,
+    endDate: data.endDate,
   });
 
   if (!classValidation.success) {
@@ -46,12 +48,14 @@ export async function createClassAction(data: CreateClassData) {
     // Create class with students in a transaction
     const newClass = await prisma.class.create({
       data: {
+        userId: session.userId,
         name: data.name,
         classroom: data.classroom,
         code: data.code,
-        timing: data.timing,
-        dates: data.dates,
-        status: data.status,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        startDate: new Date(data.startDate),
+        endDate: new Date(data.endDate),
         students: {
           create: data.students.map(s => ({
             name: s.name,

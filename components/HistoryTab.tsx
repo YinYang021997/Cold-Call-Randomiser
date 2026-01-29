@@ -9,8 +9,9 @@ import {
   ButtonGroup,
   Chip,
   Grid,
+  CircularProgress,
 } from '@mui/material';
-import { History as HistoryIcon, Clear as ClearIcon } from '@mui/icons-material';
+import { History as HistoryIcon, Clear as ClearIcon, Check as CheckIcon } from '@mui/icons-material';
 import { updateColdCallScoreAction } from '@/app/(app)/classes/[classId]/actions';
 
 interface Student {
@@ -49,8 +50,30 @@ export function HistoryTab({ coldCalls }: HistoryTabProps) {
     return initial;
   });
 
+  // Track saving status for each cold call
+  const [savingStatus, setSavingStatus] = useState<Record<string, 'saving' | 'saved' | null>>({});
+
   // Track pending changes that need to be saved
   const pendingChanges = useRef<Record<string, number | null>>({});
+  const saveTimeouts = useRef<Record<string, NodeJS.Timeout>>({});
+
+  // Save a single score to server
+  const saveScore = useCallback(async (coldCallId: string, score: number | null) => {
+    setSavingStatus(prev => ({ ...prev, [coldCallId]: 'saving' }));
+
+    const result = await updateColdCallScoreAction(coldCallId, score);
+
+    if (result.error) {
+      console.error('Error updating score:', result.error);
+      setSavingStatus(prev => ({ ...prev, [coldCallId]: null }));
+    } else {
+      setSavingStatus(prev => ({ ...prev, [coldCallId]: 'saved' }));
+      // Clear the "saved" indicator after 2 seconds
+      setTimeout(() => {
+        setSavingStatus(prev => ({ ...prev, [coldCallId]: null }));
+      }, 2000);
+    }
+  }, []);
 
   // Save pending changes to server
   const savePendingChanges = useCallback(async () => {
@@ -58,12 +81,9 @@ export function HistoryTab({ coldCalls }: HistoryTabProps) {
     pendingChanges.current = {};
 
     for (const [coldCallId, score] of Object.entries(changes)) {
-      const result = await updateColdCallScoreAction(coldCallId, score);
-      if (result.error) {
-        console.error('Error updating score:', result.error);
-      }
+      await saveScore(coldCallId, score);
     }
-  }, []);
+  }, [saveScore]);
 
   // Save changes when component unmounts or tab changes
   useEffect(() => {
@@ -95,12 +115,19 @@ export function HistoryTab({ coldCalls }: HistoryTabProps) {
     // Track the change for later saving
     pendingChanges.current[coldCallId] = score;
 
-    // Debounce save - save after 2 seconds of no activity
-    const timeoutId = setTimeout(() => {
-      savePendingChanges();
-    }, 2000);
+    // Clear any existing timeout for this cold call
+    if (saveTimeouts.current[coldCallId]) {
+      clearTimeout(saveTimeouts.current[coldCallId]);
+    }
 
-    return () => clearTimeout(timeoutId);
+    // Debounce save - save after 1.5 seconds of no activity for this item
+    saveTimeouts.current[coldCallId] = setTimeout(() => {
+      const scoreToSave = pendingChanges.current[coldCallId];
+      if (scoreToSave !== undefined) {
+        delete pendingChanges.current[coldCallId];
+        saveScore(coldCallId, scoreToSave);
+      }
+    }, 1500);
   };
 
   if (coldCalls.length === 0) {
@@ -178,6 +205,7 @@ export function HistoryTab({ coldCalls }: HistoryTabProps) {
                           variant={currentScore === scoreValue ? 'contained' : 'outlined'}
                           color={currentScore === scoreValue ? getScoreColor(scoreValue) : 'inherit'}
                           sx={{ minWidth: 45 }}
+                          disabled={savingStatus[call.id] === 'saving'}
                         >
                           {scoreValue >= 0 ? '+' : ''}{scoreValue}
                         </Button>
@@ -189,9 +217,16 @@ export function HistoryTab({ coldCalls }: HistoryTabProps) {
                       color="inherit"
                       onClick={() => handleScoreChange(call.id, null)}
                       startIcon={<ClearIcon />}
+                      disabled={savingStatus[call.id] === 'saving'}
                     >
                       Clear
                     </Button>
+                    {savingStatus[call.id] === 'saving' && (
+                      <CircularProgress size={16} />
+                    )}
+                    {savingStatus[call.id] === 'saved' && (
+                      <CheckIcon color="success" sx={{ fontSize: 20 }} />
+                    )}
                   </Box>
                 </Grid>
               </Grid>

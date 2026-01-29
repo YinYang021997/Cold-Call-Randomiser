@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import Papa from 'papaparse';
 import {
   Box,
@@ -17,6 +16,7 @@ import {
   Chip,
   IconButton,
   CircularProgress,
+  Backdrop,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -38,7 +38,13 @@ export default function AddStudentsPage({ params }: { params: { classId: string 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [navigating, setNavigating] = useState(false);
   const router = useRouter();
+
+  const handleNavigation = (path: string) => {
+    setNavigating(true);
+    router.push(path);
+  };
 
   useEffect(() => {
     const loadClass = async () => {
@@ -167,12 +173,22 @@ export default function AddStudentsPage({ params }: { params: { classId: string 
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', py: 4 }}>
+      <Backdrop
+        sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}
+        open={navigating}
+      >
+        <CircularProgress color="inherit" />
+      </Backdrop>
+
       <Container maxWidth="md">
-        <Link href={`/classes/${params.classId}`} style={{ textDecoration: 'none' }}>
-          <Button startIcon={<ArrowBackIcon />} sx={{ mb: 3 }}>
-            Back to Class
-          </Button>
-        </Link>
+        <Button
+          startIcon={navigating ? <CircularProgress size={20} color="inherit" /> : <ArrowBackIcon />}
+          sx={{ mb: 3 }}
+          onClick={() => handleNavigation(`/classes/${params.classId}`)}
+          disabled={navigating || saving}
+        >
+          Back to Class
+        </Button>
 
         <Card elevation={3}>
           <CardContent sx={{ p: 4 }}>
@@ -270,14 +286,18 @@ export default function AddStudentsPage({ params }: { params: { classId: string 
               )}
 
               <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 4 }}>
-                <Link href={`/classes/${params.classId}`} style={{ textDecoration: 'none' }}>
-                  <Button variant="outlined">Cancel</Button>
-                </Link>
+                <Button
+                  variant="outlined"
+                  onClick={() => handleNavigation(`/classes/${params.classId}`)}
+                  disabled={navigating || saving}
+                >
+                  Cancel
+                </Button>
                 <Button
                   type="submit"
                   variant="contained"
                   color="success"
-                  disabled={saving || students.length === 0}
+                  disabled={saving || navigating || students.length === 0}
                 >
                   {saving ? <CircularProgress size={24} /> : `Add ${students.length} Student${students.length !== 1 ? 's' : ''}`}
                 </Button>

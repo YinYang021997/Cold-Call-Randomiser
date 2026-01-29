@@ -6,7 +6,7 @@ const SESSION_SECRET = new TextEncoder().encode(
   process.env.SESSION_SECRET || 'default-secret-change-in-production'
 );
 
-const publicPaths = ['/login', '/forgot-password', '/reset-password'];
+const publicPaths = ['/login', '/signup', '/forgot-password', '/reset-password'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

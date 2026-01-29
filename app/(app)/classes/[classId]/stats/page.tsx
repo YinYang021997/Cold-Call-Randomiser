@@ -14,10 +14,13 @@ interface StudentStats {
 }
 
 export default async function Page({ params }: { params: { classId: string } }) {
-  await requireAuth();
+  const session = await requireAuth();
 
   const classData = await prisma.class.findUnique({
-    where: { id: params.classId },
+    where: {
+      id: params.classId,
+      userId: session.userId,
+    },
     include: {
       students: {
         include: {

@@ -23,6 +23,9 @@ async function main() {
     data: {
       email: 'anmolbongirwar@gmail.com',
       passwordHash,
+      firstName: 'Anmol',
+      lastName: 'Bongirwar',
+      role: 'TEACHER',
     },
   });
 
