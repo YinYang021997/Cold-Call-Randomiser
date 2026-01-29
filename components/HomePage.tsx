@@ -108,7 +108,7 @@ export function HomePage({ classes, firstName }: HomePageProps) {
             <CardContent sx={{ textAlign: 'center', py: 8 }}>
               <SchoolIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
               <Typography variant="h6" color="text.secondary" gutterBottom>
-                You haven't created any classes yet
+                You haven&apos;t created any classes yet
               </Typography>
               <Button
                 variant="contained"

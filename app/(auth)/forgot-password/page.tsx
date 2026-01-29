@@ -103,7 +103,7 @@ export default function ForgotPasswordPage() {
                 )}
 
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                  Enter your email address and we'll send you a link to reset your password.
+                  Enter your email address and we&apos;ll send you a link to reset your password.
                 </Typography>
 
                 <Box component="form" onSubmit={handleSubmit}>
