@@ -15,7 +15,7 @@ export interface SessionData {
 }
 
 export async function createSession(userId: string, email: string) {
-  const token = await new SignJWT({ userId, email } as SessionData)
+  const token = await new SignJWT({ userId, email })
     .setProtectedHeader({ alg: 'HS256' })
     .setExpirationTime('7d')
     .sign(SESSION_SECRET);
@@ -40,7 +40,7 @@ export async function getSession(): Promise<SessionData | null> {
     }
 
     const { payload } = await jwtVerify(token, SESSION_SECRET);
-    return payload as SessionData;
+    return payload as unknown as SessionData;
   } catch (error) {
     return null;
   }

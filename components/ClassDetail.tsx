@@ -11,10 +11,10 @@ import {
   Button,
   Tabs,
   Tab,
-  Grid,
   Chip,
   CircularProgress,
   Backdrop,
+  Grid,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -134,19 +134,19 @@ export function ClassDetail({ classData }: ClassDetailProps) {
             </Box>
 
             <Grid container spacing={3}>
-              <Grid item xs={6} md={3}>
+              <Grid size={{ xs: 6, md: 3 }}>
                 <Typography variant="caption" color="text.secondary">Classroom</Typography>
                 <Typography variant="body1" fontWeight="medium">{classData.classroom}</Typography>
               </Grid>
-              <Grid item xs={6} md={3}>
+              <Grid size={{ xs: 6, md: 3 }}>
                 <Typography variant="caption" color="text.secondary">Code</Typography>
                 <Typography variant="body1" fontWeight="medium">{classData.code}</Typography>
               </Grid>
-              <Grid item xs={6} md={3}>
+              <Grid size={{ xs: 6, md: 3 }}>
                 <Typography variant="caption" color="text.secondary">Timing</Typography>
                 <Typography variant="body1" fontWeight="medium">{classData.timing}</Typography>
               </Grid>
-              <Grid item xs={6} md={3}>
+              <Grid size={{ xs: 6, md: 3 }}>
                 <Typography variant="caption" color="text.secondary">Dates</Typography>
                 <Typography variant="body1" fontWeight="medium">{classData.dates}</Typography>
               </Grid>

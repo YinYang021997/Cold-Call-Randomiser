@@ -12,7 +12,6 @@ import {
   Button,
   Typography,
   Alert,
-  Grid,
   CircularProgress,
   List,
   ListItem,
@@ -26,6 +25,7 @@ import {
   DialogContentText,
   DialogActions,
   Backdrop,
+  Grid,
 } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -214,7 +214,7 @@ export default function EditClassPage({ params }: { params: { classId: string } 
 
               <Box component="form" onSubmit={handleSubmit}>
                 <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <TextField
                       fullWidth
                       label="Class Name"
@@ -223,7 +223,7 @@ export default function EditClassPage({ params }: { params: { classId: string } 
                       required
                     />
                   </Grid>
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <TextField
                       fullWidth
                       label="Classroom"
@@ -232,7 +232,7 @@ export default function EditClassPage({ params }: { params: { classId: string } 
                       required
                     />
                   </Grid>
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <TextField
                       fullWidth
                       label="Class Code"
@@ -241,10 +241,10 @@ export default function EditClassPage({ params }: { params: { classId: string } 
                       required
                     />
                   </Grid>
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     {/* Empty grid item for layout */}
                   </Grid>
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <TimePicker
                       label="Start Time"
                       value={startTime}
@@ -257,7 +257,7 @@ export default function EditClassPage({ params }: { params: { classId: string } 
                       }}
                     />
                   </Grid>
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <TimePicker
                       label="End Time"
                       value={endTime}
@@ -270,7 +270,7 @@ export default function EditClassPage({ params }: { params: { classId: string } 
                       }}
                     />
                   </Grid>
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <DatePicker
                       label="Start Date"
                       value={startDate}
@@ -283,7 +283,7 @@ export default function EditClassPage({ params }: { params: { classId: string } 
                       }}
                     />
                   </Grid>
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <DatePicker
                       label="End Date"
                       value={endDate}

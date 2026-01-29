@@ -1,26 +1,9 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { prisma } from './db';
 
-const isEmailConfigured = Boolean(
-  process.env.SMTP_HOST &&
-  process.env.SMTP_PORT &&
-  process.env.SMTP_USER &&
-  process.env.SMTP_PASS
-);
-
-const transporter = isEmailConfigured
-  ? nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: process.env.SMTP_PORT === '465',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    })
-  : null;
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 export async function createPasswordResetToken(email: string) {
   // Find user by email
@@ -31,7 +14,7 @@ export async function createPasswordResetToken(email: string) {
   // Always return success to prevent account enumeration
   // If user doesn't exist, we still generate a token but don't save it
   if (!user) {
-    return { success: true, devMode: !isEmailConfigured };
+    return { success: true, devMode: !resend };
   }
 
   // Generate a random token
@@ -53,10 +36,10 @@ export async function createPasswordResetToken(email: string) {
   const resetUrl = `${process.env.APP_BASE_URL || 'http://localhost:3000'}/reset-password?token=${rawToken}&email=${encodeURIComponent(email)}`;
 
   // Send email or log to console
-  if (isEmailConfigured && transporter) {
+  if (resend) {
     try {
-      await transporter.sendMail({
-        from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      await resend.emails.send({
+        from: process.env.RESEND_FROM || 'Cold Call Randomizer <onboarding@resend.dev>',
         to: email,
         subject: 'Password Reset Request',
         html: `
@@ -66,7 +49,6 @@ export async function createPasswordResetToken(email: string) {
           <p>This link will expire in 1 hour.</p>
           <p>If you didn't request this, please ignore this email.</p>
         `,
-        text: `Password Reset Request\n\nYou requested a password reset. Use this link to reset your password:\n\n${resetUrl}\n\nThis link will expire in 1 hour.\n\nIf you didn't request this, please ignore this email.`,
       });
     } catch (error) {
       console.error('Failed to send password reset email:', error);
@@ -82,7 +64,7 @@ export async function createPasswordResetToken(email: string) {
     console.log('='.repeat(80) + '\n');
   }
 
-  return { success: true, devMode: !isEmailConfigured };
+  return { success: true, devMode: !resend };
 }
 
 export async function verifyPasswordResetToken(email: string, rawToken: string) {

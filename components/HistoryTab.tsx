@@ -8,8 +8,8 @@ import {
   Button,
   ButtonGroup,
   Chip,
-  Grid,
   CircularProgress,
+  Grid,
 } from '@mui/material';
 import { History as HistoryIcon, Clear as ClearIcon, Check as CheckIcon } from '@mui/icons-material';
 import { updateColdCallScoreAction } from '@/app/(app)/classes/[classId]/actions';
@@ -172,7 +172,7 @@ export function HistoryTab({ coldCalls }: HistoryTabProps) {
               }}
             >
               <Grid container alignItems="center" spacing={2}>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 2, flexWrap: 'wrap' }}>
                     <Typography variant="h6" component="span">
                       {call.student.name}
@@ -192,7 +192,7 @@ export function HistoryTab({ coldCalls }: HistoryTabProps) {
                   </Typography>
                 </Grid>
 
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: { md: 'flex-end' } }}>
                     <Typography variant="body2" fontWeight="medium" color="text.secondary">
                       Score:
