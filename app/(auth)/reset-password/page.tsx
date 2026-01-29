@@ -3,6 +3,18 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import {
+  Box,
+  Card,
+  CardContent,
+  TextField,
+  Button,
+  Typography,
+  Alert,
+  Container,
+  CircularProgress,
+} from '@mui/material';
+import { VpnKey as VpnKeyIcon, ArrowBack as ArrowBackIcon } from '@mui/icons-material';
 import { resetPasswordAction } from './actions';
 
 function ResetPasswordForm() {
@@ -63,95 +75,115 @@ function ResetPasswordForm() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-6">Reset Password</h1>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        bgcolor: 'background.default',
+      }}
+    >
+      <Container maxWidth="sm">
+        <Card elevation={3}>
+          <CardContent sx={{ p: 4 }}>
+            <Box sx={{ textAlign: 'center', mb: 4 }}>
+              <VpnKeyIcon sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
+              <Typography variant="h4" component="h1" gutterBottom>
+                Reset Password
+              </Typography>
+            </Box>
 
-        {success ? (
-          <div className="space-y-4">
-            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
-              <p>Password reset successful! Redirecting to login...</p>
-            </div>
-          </div>
-        ) : (
-          <>
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
-                {error}
-              </div>
-            )}
-
-            {!token || !email ? (
-              <div className="text-center">
-                <Link
-                  href="/forgot-password"
-                  className="text-blue-600 hover:text-blue-800"
-                >
-                  Request a new password reset
-                </Link>
-              </div>
+            {success ? (
+              <Alert severity="success">
+                Password reset successful! Redirecting to login...
+              </Alert>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                    New Password
-                  </label>
-                  <input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="input-field"
-                    required
-                    minLength={4}
-                    autoComplete="new-password"
-                  />
-                </div>
+              <>
+                {error && (
+                  <Alert severity="error" sx={{ mb: 3 }}>
+                    {error}
+                  </Alert>
+                )}
 
-                <div>
-                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
-                    Confirm Password
-                  </label>
-                  <input
-                    id="confirmPassword"
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="input-field"
-                    required
-                    minLength={4}
-                    autoComplete="new-password"
-                  />
-                </div>
+                {!token || !email ? (
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Link href="/forgot-password" style={{ textDecoration: 'none' }}>
+                      <Button variant="outlined">
+                        Request a new password reset
+                      </Button>
+                    </Link>
+                  </Box>
+                ) : (
+                  <Box component="form" onSubmit={handleSubmit}>
+                    <TextField
+                      fullWidth
+                      id="password"
+                      label="New Password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      inputProps={{ minLength: 4 }}
+                      autoComplete="new-password"
+                      sx={{ mb: 2 }}
+                    />
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full btn-primary"
-                >
-                  {loading ? 'Resetting...' : 'Reset Password'}
-                </button>
-              </form>
+                    <TextField
+                      fullWidth
+                      id="confirmPassword"
+                      label="Confirm Password"
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                      inputProps={{ minLength: 4 }}
+                      autoComplete="new-password"
+                      sx={{ mb: 3 }}
+                    />
+
+                    <Button
+                      type="submit"
+                      fullWidth
+                      variant="contained"
+                      size="large"
+                      disabled={loading}
+                      sx={{ mb: 2 }}
+                    >
+                      {loading ? (
+                        <CircularProgress size={24} color="inherit" />
+                      ) : (
+                        'Reset Password'
+                      )}
+                    </Button>
+                  </Box>
+                )}
+
+                <Link href="/login" style={{ textDecoration: 'none' }}>
+                  <Button
+                    fullWidth
+                    variant="text"
+                    startIcon={<ArrowBackIcon />}
+                  >
+                    Back to login
+                  </Button>
+                </Link>
+              </>
             )}
-
-            <div className="mt-4 text-center">
-              <Link
-                href="/login"
-                className="text-sm text-blue-600 hover:text-blue-800"
-              >
-                Back to login
-              </Link>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+          </CardContent>
+        </Card>
+      </Container>
+    </Box>
   );
 }
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    }>
       <ResetPasswordForm />
     </Suspense>
   );

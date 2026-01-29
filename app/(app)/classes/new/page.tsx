@@ -4,6 +4,32 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Papa from 'papaparse';
+import {
+  Box,
+  Container,
+  Card,
+  CardContent,
+  TextField,
+  Button,
+  Typography,
+  Alert,
+  Grid,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Divider,
+  IconButton,
+  Paper,
+  Chip,
+  CircularProgress,
+} from '@mui/material';
+import {
+  ArrowBack as ArrowBackIcon,
+  Upload as UploadIcon,
+  PersonAdd as PersonAddIcon,
+  Delete as DeleteIcon,
+} from '@mui/icons-material';
 import { createClassAction } from './actions';
 
 interface Student {
@@ -41,14 +67,12 @@ export default function NewClassPage() {
       complete: (results) => {
         const data = results.data as any[];
 
-        // Validate headers
         const headers = Object.keys(data[0] || {}).map(h => h.toLowerCase().trim());
         if (!headers.includes('name') || !headers.includes('uni')) {
           setCsvError('CSV must have "name" and "uni" columns');
           return;
         }
 
-        // Parse and validate students
         const parsedStudents: Student[] = [];
         const errors: string[] = [];
 
@@ -75,7 +99,6 @@ export default function NewClassPage() {
       },
     });
 
-    // Clear the input
     e.target.value = '';
   };
 
@@ -104,7 +127,6 @@ export default function NewClassPage() {
       return;
     }
 
-    // Validate all students
     const invalidStudents = students.filter(s => !s.name.trim() || !s.uni.trim());
     if (invalidStudents.length > 0) {
       setError('All students must have a name and UNI');
@@ -137,193 +159,184 @@ export default function NewClassPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <Link href="/" className="text-blue-600 hover:text-blue-800">
-            ← Back to Classes
-          </Link>
-        </div>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', py: 4 }}>
+      <Container maxWidth="md">
+        <Link href="/" style={{ textDecoration: 'none' }}>
+          <Button startIcon={<ArrowBackIcon />} sx={{ mb: 3 }}>
+            Back to Classes
+          </Button>
+        </Link>
 
-        <div className="card">
-          <h1 className="text-2xl font-bold mb-6">Create New Class</h1>
+        <Card elevation={3}>
+          <CardContent sx={{ p: 4 }}>
+            <Typography variant="h4" component="h1" gutterBottom>
+              Create New Class
+            </Typography>
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
-              {error}
-            </div>
-          )}
+            {error && (
+              <Alert severity="error" sx={{ mb: 3 }}>
+                {error}
+              </Alert>
+            )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Class Name *
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="input-field"
-                  required
-                />
-              </div>
+            <Box component="form" onSubmit={handleSubmit}>
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Class Name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Classroom"
+                    value={classroom}
+                    onChange={(e) => setClassroom(e.target.value)}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Class Code"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Timing"
+                    value={timing}
+                    onChange={(e) => setTiming(e.target.value)}
+                    placeholder="e.g., Weds 10:10–11:30"
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Dates"
+                    value={dates}
+                    onChange={(e) => setDates(e.target.value)}
+                    placeholder="e.g., Jan 22 – May 2, 2026"
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>Status</InputLabel>
+                    <Select
+                      value={status}
+                      label="Status"
+                      onChange={(e) => setStatus(e.target.value as 'ACTIVE' | 'ARCHIVED')}
+                    >
+                      <MenuItem value="ACTIVE">Active</MenuItem>
+                      <MenuItem value="ARCHIVED">Archived</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Classroom *
-                </label>
-                <input
-                  type="text"
-                  value={classroom}
-                  onChange={(e) => setClassroom(e.target.value)}
-                  className="input-field"
-                  required
-                />
-              </div>
+              <Divider sx={{ my: 4 }} />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Class Code *
-                </label>
-                <input
-                  type="text"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  className="input-field"
-                  required
-                />
-              </div>
+              <Typography variant="h6" gutterBottom>
+                Students
+              </Typography>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Timing *
-                </label>
-                <input
-                  type="text"
-                  value={timing}
-                  onChange={(e) => setTiming(e.target.value)}
-                  className="input-field"
-                  placeholder="e.g., Weds 10:10–11:30"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Dates *
-                </label>
-                <input
-                  type="text"
-                  value={dates}
-                  onChange={(e) => setDates(e.target.value)}
-                  className="input-field"
-                  placeholder="e.g., Jan 22 – May 2, 2026"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Status
-                </label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as 'ACTIVE' | 'ARCHIVED')}
-                  className="input-field"
+              <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+                <Button
+                  component="label"
+                  variant="contained"
+                  startIcon={<UploadIcon />}
                 >
-                  <option value="ACTIVE">Active</option>
-                  <option value="ARCHIVED">Archived</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="border-t pt-6">
-              <h2 className="text-lg font-semibold mb-4">Students</h2>
-
-              <div className="mb-4 flex gap-3">
-                <div>
-                  <label className="btn-primary cursor-pointer">
-                    Upload CSV
-                    <input
-                      type="file"
-                      accept=".csv"
-                      onChange={handleCsvUpload}
-                      className="hidden"
-                    />
-                  </label>
-                  <p className="text-xs text-gray-500 mt-1">
-                    CSV must have columns: name, uni
-                  </p>
-                </div>
-
-                <button
-                  type="button"
+                  Upload CSV
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={handleCsvUpload}
+                    hidden
+                  />
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<PersonAddIcon />}
                   onClick={addManualStudent}
-                  className="btn-secondary"
                 >
                   Add Student Manually
-                </button>
-              </div>
+                </Button>
+              </Box>
+
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
+                CSV must have columns: name, uni
+              </Typography>
 
               {csvError && (
-                <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded mb-4 text-sm">
+                <Alert severity="warning" sx={{ mb: 3 }}>
                   {csvError}
-                </div>
+                </Alert>
               )}
 
               {students.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-600">
-                    {students.length} student{students.length !== 1 ? 's' : ''} added
-                  </p>
+                <Box>
+                  <Chip
+                    label={`${students.length} student${students.length !== 1 ? 's' : ''} added`}
+                    color="primary"
+                    variant="outlined"
+                    sx={{ mb: 2 }}
+                  />
 
-                  <div className="max-h-96 overflow-y-auto border rounded-lg p-4 bg-gray-50">
+                  <Paper variant="outlined" sx={{ p: 2, maxHeight: 400, overflow: 'auto' }}>
                     {students.map((student, idx) => (
-                      <div key={idx} className="flex gap-2 mb-2">
-                        <input
-                          type="text"
+                      <Box key={idx} sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
+                        <TextField
+                          size="small"
+                          label="Name"
                           value={student.name}
                           onChange={(e) => updateStudent(idx, 'name', e.target.value)}
-                          placeholder="Name"
-                          className="input-field flex-1"
+                          sx={{ flex: 1 }}
                         />
-                        <input
-                          type="text"
+                        <TextField
+                          size="small"
+                          label="UNI"
                           value={student.uni}
                           onChange={(e) => updateStudent(idx, 'uni', e.target.value)}
-                          placeholder="UNI"
-                          className="input-field w-32"
+                          sx={{ width: 150 }}
                         />
-                        <button
-                          type="button"
+                        <IconButton
+                          color="error"
                           onClick={() => removeStudent(idx)}
-                          className="px-3 py-2 text-red-600 hover:text-red-800"
+                          size="small"
                         >
-                          ✕
-                        </button>
-                      </div>
+                          <DeleteIcon />
+                        </IconButton>
+                      </Box>
                     ))}
-                  </div>
-                </div>
+                  </Paper>
+                </Box>
               )}
-            </div>
 
-            <div className="flex gap-3 justify-end">
-              <Link href="/" className="btn-secondary">
-                Cancel
-              </Link>
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn-primary"
-              >
-                {loading ? 'Creating...' : 'Create Class'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
+              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 4 }}>
+                <Link href="/" style={{ textDecoration: 'none' }}>
+                  <Button variant="outlined">Cancel</Button>
+                </Link>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  disabled={loading}
+                >
+                  {loading ? <CircularProgress size={24} /> : 'Create Class'}
+                </Button>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+      </Container>
+    </Box>
   );
 }

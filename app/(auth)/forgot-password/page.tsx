@@ -2,6 +2,18 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import {
+  Box,
+  Card,
+  CardContent,
+  TextField,
+  Button,
+  Typography,
+  Alert,
+  Container,
+  CircularProgress,
+} from '@mui/material';
+import { LockReset as LockResetIcon, ArrowBack as ArrowBackIcon } from '@mui/icons-material';
 import { forgotPasswordAction } from './actions';
 
 export default function ForgotPasswordPage() {
@@ -37,81 +49,106 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-6">Forgot Password</h1>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        bgcolor: 'background.default',
+      }}
+    >
+      <Container maxWidth="sm">
+        <Card elevation={3}>
+          <CardContent sx={{ p: 4 }}>
+            <Box sx={{ textAlign: 'center', mb: 4 }}>
+              <LockResetIcon sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
+              <Typography variant="h4" component="h1" gutterBottom>
+                Forgot Password
+              </Typography>
+            </Box>
 
-        {success ? (
-          <div className="space-y-4">
-            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
-              {devMode ? (
-                <>
-                  <p className="font-semibold">Dev Mode: Email not configured</p>
-                  <p className="text-sm mt-1">
-                    Check your server console for the password reset link.
-                  </p>
-                </>
-              ) : (
-                <p>
-                  If an account exists with that email, you will receive a password reset link shortly.
-                </p>
-              )}
-            </div>
-            <Link
-              href="/login"
-              className="block text-center text-blue-600 hover:text-blue-800"
-            >
-              Return to login
-            </Link>
-          </div>
-        ) : (
-          <>
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
-                {error}
-              </div>
+            {success ? (
+              <Box>
+                <Alert severity={devMode ? 'info' : 'success'} sx={{ mb: 3 }}>
+                  {devMode ? (
+                    <>
+                      <Typography variant="subtitle2" fontWeight="bold">
+                        Dev Mode: Email not configured
+                      </Typography>
+                      <Typography variant="body2">
+                        Check your server console for the password reset link.
+                      </Typography>
+                    </>
+                  ) : (
+                    'If an account exists with that email, you will receive a password reset link shortly.'
+                  )}
+                </Alert>
+                <Link href="/login" style={{ textDecoration: 'none' }}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    startIcon={<ArrowBackIcon />}
+                  >
+                    Return to login
+                  </Button>
+                </Link>
+              </Box>
+            ) : (
+              <>
+                {error && (
+                  <Alert severity="error" sx={{ mb: 3 }}>
+                    {error}
+                  </Alert>
+                )}
+
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                  Enter your email address and we'll send you a link to reset your password.
+                </Typography>
+
+                <Box component="form" onSubmit={handleSubmit}>
+                  <TextField
+                    fullWidth
+                    id="email"
+                    label="Email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                    sx={{ mb: 3 }}
+                  />
+
+                  <Button
+                    type="submit"
+                    fullWidth
+                    variant="contained"
+                    size="large"
+                    disabled={loading}
+                    sx={{ mb: 2 }}
+                  >
+                    {loading ? (
+                      <CircularProgress size={24} color="inherit" />
+                    ) : (
+                      'Send Reset Link'
+                    )}
+                  </Button>
+
+                  <Link href="/login" style={{ textDecoration: 'none' }}>
+                    <Button
+                      fullWidth
+                      variant="text"
+                      startIcon={<ArrowBackIcon />}
+                    >
+                      Back to login
+                    </Button>
+                  </Link>
+                </Box>
+              </>
             )}
-
-            <p className="text-gray-600 mb-6 text-sm">
-              Enter your email address and we'll send you a link to reset your password.
-            </p>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="input-field"
-                  required
-                  autoComplete="email"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full btn-primary"
-              >
-                {loading ? 'Sending...' : 'Send Reset Link'}
-              </button>
-            </form>
-
-            <div className="mt-4 text-center">
-              <Link
-                href="/login"
-                className="text-sm text-blue-600 hover:text-blue-800"
-              >
-                Back to login
-              </Link>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+          </CardContent>
+        </Card>
+      </Container>
+    </Box>
   );
 }

@@ -1,6 +1,16 @@
 'use client';
 
-import { useState, useOptimistic } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  Box,
+  Paper,
+  Typography,
+  Button,
+  ButtonGroup,
+  Chip,
+  Grid,
+} from '@mui/material';
+import { History as HistoryIcon, Clear as ClearIcon } from '@mui/icons-material';
 import { updateColdCallScoreAction } from '@/app/(app)/classes/[classId]/actions';
 
 interface Student {
@@ -23,96 +33,172 @@ interface HistoryTabProps {
 
 const scoreOptions = [-2, -1, 0, 1, 2];
 
+const getScoreColor = (score: number): 'error' | 'warning' | 'success' => {
+  if (score < 0) return 'error';
+  if (score === 0) return 'warning';
+  return 'success';
+};
+
 export function HistoryTab({ coldCalls }: HistoryTabProps) {
-  const [optimisticCalls, setOptimisticCalls] = useOptimistic(
-    coldCalls,
-    (state, { id, score }: { id: string; score: number | null }) =>
-      state.map(call => (call.id === id ? { ...call, score } : call))
-  );
+  // Local state for scores - initialized from props
+  const [localScores, setLocalScores] = useState<Record<string, number | null>>(() => {
+    const initial: Record<string, number | null> = {};
+    coldCalls.forEach(call => {
+      initial[call.id] = call.score;
+    });
+    return initial;
+  });
 
-  const handleScoreChange = async (coldCallId: string, score: number | null) => {
-    setOptimisticCalls({ id: coldCallId, score });
+  // Track pending changes that need to be saved
+  const pendingChanges = useRef<Record<string, number | null>>({});
 
-    const result = await updateColdCallScoreAction(coldCallId, score);
+  // Save pending changes to server
+  const savePendingChanges = useCallback(async () => {
+    const changes = { ...pendingChanges.current };
+    pendingChanges.current = {};
 
-    if (result.error) {
-      console.error('Error updating score:', result.error);
+    for (const [coldCallId, score] of Object.entries(changes)) {
+      const result = await updateColdCallScoreAction(coldCallId, score);
+      if (result.error) {
+        console.error('Error updating score:', result.error);
+      }
     }
+  }, []);
+
+  // Save changes when component unmounts or tab changes
+  useEffect(() => {
+    return () => {
+      if (Object.keys(pendingChanges.current).length > 0) {
+        savePendingChanges();
+      }
+    };
+  }, [savePendingChanges]);
+
+  // Also save on visibility change (when user switches tabs/windows)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && Object.keys(pendingChanges.current).length > 0) {
+        savePendingChanges();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [savePendingChanges]);
+
+  const handleScoreChange = (coldCallId: string, score: number | null) => {
+    // Update local state immediately
+    setLocalScores(prev => ({ ...prev, [coldCallId]: score }));
+
+    // Track the change for later saving
+    pendingChanges.current[coldCallId] = score;
+
+    // Debounce save - save after 2 seconds of no activity
+    const timeoutId = setTimeout(() => {
+      savePendingChanges();
+    }, 2000);
+
+    return () => clearTimeout(timeoutId);
   };
 
-  if (optimisticCalls.length === 0) {
+  if (coldCalls.length === 0) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-500">No cold calls yet. Use the slot machine to select a student!</p>
-      </div>
+      <Box sx={{ textAlign: 'center', py: 8 }}>
+        <HistoryIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+        <Typography variant="h6" color="text.secondary">
+          No cold calls yet
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Use the slot machine to select a student!
+        </Typography>
+      </Box>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold mb-4">
-        Cold Call History ({optimisticCalls.length} total)
-      </h3>
+    <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h6">
+          Cold Call History
+        </Typography>
+        <Chip
+          label={`${coldCalls.length} total`}
+          size="small"
+          sx={{ ml: 2 }}
+        />
+      </Box>
 
-      <div className="space-y-2">
-        {optimisticCalls.map((call) => (
-          <div
-            key={call.id}
-            className="bg-gray-50 border rounded-lg p-4 hover:bg-gray-100 transition-colors"
-          >
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div className="flex-1">
-                <div className="flex items-baseline gap-3">
-                  <div className="font-semibold text-lg">{call.student.name}</div>
-                  <div className="text-sm text-gray-600">{call.student.uni}</div>
-                </div>
-                <div className="text-sm text-gray-500 mt-1">
-                  {new Date(call.calledAt).toLocaleString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                    hour: 'numeric',
-                    minute: '2-digit',
-                  })}
-                </div>
-              </div>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {coldCalls.map((call) => {
+          const currentScore = localScores[call.id] ?? null;
 
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-700 mr-2">Score:</span>
-                <div className="flex gap-1">
-                  {scoreOptions.map((scoreValue) => (
-                    <button
-                      key={scoreValue}
-                      onClick={() => handleScoreChange(call.id, scoreValue)}
-                      className={`w-10 h-10 rounded-lg font-semibold text-sm transition-colors ${
-                        call.score === scoreValue
-                          ? scoreValue >= 1
-                            ? 'bg-green-500 text-white'
-                            : scoreValue === 0
-                            ? 'bg-yellow-500 text-white'
-                            : 'bg-red-500 text-white'
-                          : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'
-                      }`}
+          return (
+            <Paper
+              key={call.id}
+              elevation={1}
+              sx={{
+                p: 3,
+                '&:hover': { bgcolor: 'action.hover' },
+                transition: 'background-color 0.2s',
+              }}
+            >
+              <Grid container alignItems="center" spacing={2}>
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 2, flexWrap: 'wrap' }}>
+                    <Typography variant="h6" component="span">
+                      {call.student.name}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {call.student.uni}
+                    </Typography>
+                  </Box>
+                  <Typography variant="caption" color="text.secondary">
+                    {new Date(call.calledAt).toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
+                  </Typography>
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: { md: 'flex-end' } }}>
+                    <Typography variant="body2" fontWeight="medium" color="text.secondary">
+                      Score:
+                    </Typography>
+                    <ButtonGroup size="small" variant="outlined">
+                      {scoreOptions.map((scoreValue) => (
+                        <Button
+                          key={scoreValue}
+                          onClick={() => handleScoreChange(call.id, scoreValue)}
+                          variant={currentScore === scoreValue ? 'contained' : 'outlined'}
+                          color={currentScore === scoreValue ? getScoreColor(scoreValue) : 'inherit'}
+                          sx={{ minWidth: 45 }}
+                        >
+                          {scoreValue >= 0 ? '+' : ''}{scoreValue}
+                        </Button>
+                      ))}
+                    </ButtonGroup>
+                    <Button
+                      size="small"
+                      variant={currentScore === null ? 'contained' : 'outlined'}
+                      color="inherit"
+                      onClick={() => handleScoreChange(call.id, null)}
+                      startIcon={<ClearIcon />}
                     >
-                      {scoreValue >= 0 ? '+' : ''}{scoreValue}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => handleScoreChange(call.id, null)}
-                    className={`px-3 h-10 rounded-lg font-medium text-sm transition-colors ${
-                      call.score === null
-                        ? 'bg-gray-300 text-gray-700'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'
-                    }`}
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+                      Clear
+                    </Button>
+                  </Box>
+                </Grid>
+              </Grid>
+            </Paper>
+          );
+        })}
+      </Box>
+    </Box>
   );
 }

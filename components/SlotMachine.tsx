@@ -1,8 +1,17 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import confetti from 'canvas-confetti';
+import {
+  Box,
+  Paper,
+  Typography,
+  Button,
+  Alert,
+  CircularProgress,
+} from '@mui/material';
+import { Casino as CasinoIcon, Person as PersonIcon } from '@mui/icons-material';
 import { spinSlotMachineAction } from '@/app/(app)/classes/[classId]/actions';
 
 interface Student {
@@ -19,15 +28,27 @@ interface SlotMachineProps {
 export function SlotMachine({ classId, students }: SlotMachineProps) {
   const [isSpinning, setIsSpinning] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [displayIndex, setDisplayIndex] = useState(0);
+  const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
   const [error, setError] = useState('');
   const router = useRouter();
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const animationRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Calculate grid columns based on number of students to fit in viewport
+  const getGridColumns = useCallback(() => {
+    const count = students.length;
+    if (count <= 4) return 2;
+    if (count <= 6) return 3;
+    if (count <= 12) return 4;
+    if (count <= 20) return 5;
+    if (count <= 30) return 6;
+    if (count <= 42) return 7;
+    return 8;
+  }, [students.length]);
 
   useEffect(() => {
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+      if (animationRef.current) {
+        clearTimeout(animationRef.current);
       }
     };
   }, []);
@@ -40,23 +61,42 @@ export function SlotMachine({ classId, students }: SlotMachineProps) {
     setIsSpinning(true);
 
     try {
-      // Start the visual spinning animation
-      let currentIndex = 0;
-      let speed = 50;
+      // Start the random cell-hopping animation
+      let hopCount = 0;
+      const totalHops = 30 + Math.floor(Math.random() * 20); // 30-50 hops
+      let currentDelay = 50; // Start fast
 
-      intervalRef.current = setInterval(() => {
-        currentIndex = (currentIndex + 1) % students.length;
-        setDisplayIndex(currentIndex);
-      }, speed);
+      const animateHop = () => {
+        // Pick a random cell to highlight
+        const randomIndex = Math.floor(Math.random() * students.length);
+        setHighlightedIndex(randomIndex);
+        hopCount++;
 
-      // Get the selected student from server
+        // Gradually slow down
+        if (hopCount > totalHops * 0.6) {
+          currentDelay += 20;
+        }
+        if (hopCount > totalHops * 0.8) {
+          currentDelay += 40;
+        }
+
+        if (hopCount < totalHops) {
+          animationRef.current = setTimeout(animateHop, currentDelay);
+        }
+      };
+
+      // Start the animation
+      animateHop();
+
+      // Call the server action to get the selected student
       const result = await spinSlotMachineAction(classId);
 
       if (result.error) {
         setError(result.error);
         setIsSpinning(false);
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
+        setHighlightedIndex(null);
+        if (animationRef.current) {
+          clearTimeout(animationRef.current);
         }
         return;
       }
@@ -64,140 +104,235 @@ export function SlotMachine({ classId, students }: SlotMachineProps) {
       if (!result.student) {
         setError('Failed to select a student');
         setIsSpinning(false);
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
+        setHighlightedIndex(null);
+        if (animationRef.current) {
+          clearTimeout(animationRef.current);
         }
         return;
       }
 
-      // Find the index of the selected student
+      // Wait for animation to finish, then show the result
       const selectedIndex = students.findIndex(s => s.id === result.student!.id);
 
-      // Gradually slow down the animation
-      let slowDownSteps = 0;
-      const maxSlowDownSteps = 15;
-
-      const slowDown = setInterval(() => {
-        speed += 30;
-        slowDownSteps++;
-
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
+      // Final animation: hop to the selected student with a dramatic slowdown
+      setTimeout(() => {
+        if (animationRef.current) {
+          clearTimeout(animationRef.current);
         }
 
-        if (slowDownSteps >= maxSlowDownSteps) {
-          clearInterval(slowDown);
-          // Stop at the selected student
-          setDisplayIndex(selectedIndex);
-          setSelectedStudent(result.student!);
-          setIsSpinning(false);
+        // Do a few more hops landing on the selected student
+        let finalHops = 0;
+        const maxFinalHops = 5;
+        let finalDelay = 200;
 
-          // Trigger confetti
-          confetti({
-            particleCount: 100,
-            spread: 70,
-            origin: { y: 0.6 },
-          });
+        const finalAnimation = () => {
+          if (finalHops < maxFinalHops) {
+            // Randomly hop a few more times
+            const randomIdx = Math.floor(Math.random() * students.length);
+            setHighlightedIndex(randomIdx);
+            finalHops++;
+            finalDelay += 100;
+            animationRef.current = setTimeout(finalAnimation, finalDelay);
+          } else {
+            // Land on the selected student
+            setHighlightedIndex(selectedIndex);
+            setSelectedStudent(result.student!);
+            setIsSpinning(false);
 
-          // Refresh to show updated history
-          setTimeout(() => {
-            router.refresh();
-          }, 1000);
-        } else {
-          intervalRef.current = setInterval(() => {
-            currentIndex = (currentIndex + 1) % students.length;
-            setDisplayIndex(currentIndex);
-          }, speed);
-        }
-      }, 100);
+            // Trigger confetti
+            confetti({
+              particleCount: 150,
+              spread: 100,
+              origin: { y: 0.6 },
+            });
+
+            // Extra confetti bursts
+            setTimeout(() => {
+              confetti({
+                particleCount: 50,
+                angle: 60,
+                spread: 55,
+                origin: { x: 0 },
+              });
+              confetti({
+                particleCount: 50,
+                angle: 120,
+                spread: 55,
+                origin: { x: 1 },
+              });
+            }, 200);
+
+            setTimeout(() => {
+              router.refresh();
+            }, 1500);
+          }
+        };
+
+        finalAnimation();
+      }, totalHops * 60); // Wait for initial animation to mostly complete
 
     } catch (err) {
       setError('An error occurred. Please try again.');
       setIsSpinning(false);
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+      setHighlightedIndex(null);
+      if (animationRef.current) {
+        clearTimeout(animationRef.current);
       }
     }
   };
 
   if (students.length === 0) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-500">No students in this class yet.</p>
-      </div>
+      <Box sx={{ textAlign: 'center', py: 8 }}>
+        <PersonIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+        <Typography variant="h6" color="text.secondary">
+          No students in this class yet
+        </Typography>
+      </Box>
     );
   }
 
+  const gridColumns = getGridColumns();
+
   return (
-    <div className="space-y-6">
+    <Box>
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+        <Alert severity="error" sx={{ mb: 3 }}>
           {error}
-        </div>
+        </Alert>
       )}
 
-      <div className="flex flex-col md:flex-row gap-6">
-        {/* Slot Machine Display */}
-        <div className="flex-1">
-          <div className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg p-8 text-white shadow-xl">
-            <h2 className="text-xl font-semibold mb-4 text-center">Random Student Picker</h2>
+      {/* Header with Spin Button */}
+      <Paper
+        elevation={6}
+        sx={{
+          background: 'linear-gradient(135deg, #1976d2 0%, #9c27b0 100%)',
+          p: 2,
+          borderRadius: 2,
+          color: 'white',
+          mb: 2,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <CasinoIcon sx={{ fontSize: 28, mr: 1 }} />
+            <Typography variant="h6" fontWeight="bold">
+              Random Student Picker
+            </Typography>
+          </Box>
 
-            <div className="bg-white rounded-lg p-6 text-gray-900 min-h-[200px] flex flex-col items-center justify-center">
-              {selectedStudent ? (
-                <div className="text-center animate-pulse">
-                  <div className="text-4xl font-bold mb-2">{selectedStudent.name}</div>
-                  <div className="text-2xl text-gray-600">{selectedStudent.uni}</div>
-                </div>
-              ) : (
-                <div className="text-center">
-                  <div className={`text-3xl font-bold mb-2 ${isSpinning ? 'animate-pulse' : ''}`}>
-                    {students[displayIndex]?.name || 'Ready'}
-                  </div>
-                  <div className="text-xl text-gray-600">
-                    {students[displayIndex]?.uni || 'Click to spin'}
-                  </div>
-                </div>
-              )}
-            </div>
+          <Button
+            variant="contained"
+            size="medium"
+            onClick={handleSpin}
+            disabled={isSpinning}
+            sx={{
+              bgcolor: 'white',
+              color: 'primary.main',
+              px: 4,
+              py: 1,
+              fontSize: '1rem',
+              fontWeight: 'bold',
+              '&:hover': {
+                bgcolor: 'grey.100',
+              },
+            }}
+            startIcon={isSpinning ? <CircularProgress size={18} color="primary" /> : <CasinoIcon />}
+          >
+            {isSpinning ? 'Spinning...' : 'Spin & Pick'}
+          </Button>
+        </Box>
+      </Paper>
 
-            <div className="mt-6 text-center">
-              <button
-                onClick={handleSpin}
-                disabled={isSpinning}
-                className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold text-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+      {/* Selected Student Banner */}
+      {selectedStudent && (
+        <Paper
+          elevation={4}
+          sx={{
+            background: 'linear-gradient(135deg, #4caf50 0%, #8bc34a 100%)',
+            p: 1.5,
+            borderRadius: 2,
+            mb: 2,
+            textAlign: 'center',
+          }}
+        >
+          <Typography variant="h5" fontWeight="bold" color="white">
+            🎉 {selectedStudent.name} 🎉
+          </Typography>
+        </Paper>
+      )}
+
+      {/* Student Grid */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${gridColumns}, 1fr)`,
+          gap: 1,
+        }}
+      >
+        {students.map((student, idx) => {
+          const isHighlighted = highlightedIndex === idx && isSpinning;
+          const isSelected = selectedStudent?.id === student.id;
+
+          return (
+            <Paper
+              key={student.id}
+              elevation={isHighlighted || isSelected ? 6 : 1}
+              sx={{
+                py: 1,
+                px: 1.5,
+                textAlign: 'center',
+                borderRadius: 1.5,
+                transition: 'all 0.08s ease-in-out',
+                transform: isHighlighted || isSelected ? 'scale(1.03)' : 'scale(1)',
+                bgcolor: isSelected
+                  ? 'success.main'
+                  : isHighlighted
+                  ? 'primary.main'
+                  : 'background.paper',
+                color: isSelected || isHighlighted ? 'white' : 'text.primary',
+                border: isSelected
+                  ? '2px solid'
+                  : isHighlighted
+                  ? '2px solid'
+                  : '1px solid',
+                borderColor: isSelected
+                  ? 'success.dark'
+                  : isHighlighted
+                  ? 'primary.dark'
+                  : 'divider',
+                boxShadow: isSelected
+                  ? '0 0 15px rgba(76, 175, 80, 0.5)'
+                  : isHighlighted
+                  ? '0 0 10px rgba(25, 118, 210, 0.4)'
+                  : undefined,
+              }}
+            >
+              <Typography
+                fontWeight={isSelected ? 'bold' : 'medium'}
+                sx={{
+                  fontSize: students.length > 30 ? '0.75rem' : students.length > 15 ? '0.85rem' : '0.9rem',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  lineHeight: 1.3,
+                }}
               >
-                {isSpinning ? 'Spinning...' : 'Spin & Pick'}
-              </button>
-            </div>
-          </div>
-        </div>
+                {student.name}
+              </Typography>
+            </Paper>
+          );
+        })}
+      </Box>
 
-        {/* Student List */}
-        <div className="flex-1">
-          <h3 className="text-lg font-semibold mb-3">
-            All Students ({students.length})
-          </h3>
-          <div className="bg-white border rounded-lg max-h-[400px] overflow-y-auto">
-            <div className="divide-y">
-              {students.map((student, idx) => (
-                <div
-                  key={student.id}
-                  className={`px-4 py-3 ${
-                    displayIndex === idx && isSpinning
-                      ? 'bg-blue-50'
-                      : selectedStudent?.id === student.id
-                      ? 'bg-green-50 font-semibold'
-                      : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="font-medium">{student.name}</div>
-                  <div className="text-sm text-gray-600">{student.uni}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      {/* Student Count */}
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ mt: 1.5, display: 'block', textAlign: 'center' }}
+      >
+        {students.length} student{students.length !== 1 ? 's' : ''}
+      </Typography>
+    </Box>
   );
 }

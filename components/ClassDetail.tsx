@@ -2,6 +2,26 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import {
+  Box,
+  Container,
+  Card,
+  CardContent,
+  Typography,
+  Button,
+  Tabs,
+  Tab,
+  Grid,
+  Chip,
+} from '@mui/material';
+import {
+  ArrowBack as ArrowBackIcon,
+  Edit as EditIcon,
+  PersonAdd as PersonAddIcon,
+  Casino as CasinoIcon,
+  History as HistoryIcon,
+  Analytics as AnalyticsIcon,
+} from '@mui/icons-material';
 import { SlotMachine } from './SlotMachine';
 import { HistoryTab } from './HistoryTab';
 
@@ -36,92 +56,95 @@ interface ClassDetailProps {
 }
 
 export function ClassDetail({ classData }: ClassDetailProps) {
-  const [activeTab, setActiveTab] = useState<'cold-call' | 'history'>('cold-call');
+  const [activeTab, setActiveTab] = useState(0);
+
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <Link href="/" className="text-blue-600 hover:text-blue-800">
-            ← Back to Classes
-          </Link>
-        </div>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', py: 4 }}>
+      <Container maxWidth="xl">
+        <Link href="/" style={{ textDecoration: 'none' }}>
+          <Button startIcon={<ArrowBackIcon />} sx={{ mb: 3 }}>
+            Back to Classes
+          </Button>
+        </Link>
 
-        <div className="card mb-6">
-          <div className="flex justify-between items-start mb-4">
-            <h1 className="text-3xl font-bold">{classData.name}</h1>
-            <div className="flex gap-2">
-              <Link
-                href={`/classes/${classData.id}/edit`}
-                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm"
-              >
-                Edit Class
-              </Link>
-              <Link
-                href={`/classes/${classData.id}/add-students`}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
-              >
-                Add Students
-              </Link>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
-            <div>
-              <span className="font-medium">Classroom:</span> {classData.classroom}
-            </div>
-            <div>
-              <span className="font-medium">Code:</span> {classData.code}
-            </div>
-            <div>
-              <span className="font-medium">Timing:</span> {classData.timing}
-            </div>
-            <div>
-              <span className="font-medium">Dates:</span> {classData.dates}
-            </div>
-          </div>
-        </div>
+        <Card elevation={3} sx={{ mb: 3 }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
+              <Box>
+                <Typography variant="h4" component="h1" gutterBottom>
+                  {classData.name}
+                </Typography>
+                <Chip
+                  label={classData.status}
+                  color={classData.status === 'ACTIVE' ? 'success' : 'default'}
+                  size="small"
+                />
+              </Box>
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <Link href={`/classes/${classData.id}/edit`} style={{ textDecoration: 'none' }}>
+                  <Button variant="outlined" startIcon={<EditIcon />}>
+                    Edit Class
+                  </Button>
+                </Link>
+                <Link href={`/classes/${classData.id}/add-students`} style={{ textDecoration: 'none' }}>
+                  <Button variant="contained" color="success" startIcon={<PersonAddIcon />}>
+                    Add Students
+                  </Button>
+                </Link>
+              </Box>
+            </Box>
 
-        <div className="card mb-6">
-          <div className="border-b border-gray-200 mb-6">
-            <nav className="-mb-px flex space-x-8">
-              <button
-                onClick={() => setActiveTab('cold-call')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'cold-call'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Cold Call
-              </button>
-              <button
-                onClick={() => setActiveTab('history')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'history'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                History
-              </button>
-              <Link
+            <Grid container spacing={3}>
+              <Grid item xs={6} md={3}>
+                <Typography variant="caption" color="text.secondary">Classroom</Typography>
+                <Typography variant="body1" fontWeight="medium">{classData.classroom}</Typography>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Typography variant="caption" color="text.secondary">Code</Typography>
+                <Typography variant="body1" fontWeight="medium">{classData.code}</Typography>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Typography variant="caption" color="text.secondary">Timing</Typography>
+                <Typography variant="body1" fontWeight="medium">{classData.timing}</Typography>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Typography variant="caption" color="text.secondary">Dates</Typography>
+                <Typography variant="body1" fontWeight="medium">{classData.dates}</Typography>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+
+        <Card elevation={3}>
+          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+            <Tabs value={activeTab} onChange={handleTabChange}>
+              <Tab icon={<CasinoIcon />} iconPosition="start" label="Cold Call" />
+              <Tab icon={<HistoryIcon />} iconPosition="start" label="History" />
+              <Tab
+                icon={<AnalyticsIcon />}
+                iconPosition="start"
+                label="Stats"
+                component={Link}
                 href={`/classes/${classData.id}/stats`}
-                className="py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm"
-              >
-                Stats →
-              </Link>
-            </nav>
-          </div>
+              />
+            </Tabs>
+          </Box>
 
-          {activeTab === 'cold-call' && (
-            <SlotMachine classId={classData.id} students={classData.students} />
-          )}
+          <CardContent>
+            {activeTab === 0 && (
+              <SlotMachine classId={classData.id} students={classData.students} />
+            )}
 
-          {activeTab === 'history' && (
-            <HistoryTab coldCalls={classData.coldCalls} />
-          )}
-        </div>
-      </div>
-    </div>
+            {activeTab === 1 && (
+              <HistoryTab coldCalls={classData.coldCalls} />
+            )}
+          </CardContent>
+        </Card>
+      </Container>
+    </Box>
   );
 }

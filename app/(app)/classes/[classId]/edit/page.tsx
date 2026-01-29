@@ -3,17 +3,24 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import {
+  Box,
+  Container,
+  Card,
+  CardContent,
+  TextField,
+  Button,
+  Typography,
+  Alert,
+  Grid,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  CircularProgress,
+} from '@mui/material';
+import { ArrowBack as ArrowBackIcon, Edit as EditIcon } from '@mui/icons-material';
 import { updateClassAction, getClassAction } from './actions';
-
-interface ClassData {
-  id: string;
-  name: string;
-  classroom: string;
-  code: string;
-  timing: string;
-  dates: string;
-  status: string;
-}
 
 export default function EditClassPage({ params }: { params: { classId: string } }) {
   const [name, setName] = useState('');
@@ -76,129 +83,116 @@ export default function EditClassPage({ params }: { params: { classId: string } 
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-600">Loading...</div>
-      </div>
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
+        <CircularProgress />
+      </Box>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <Link href={`/classes/${params.classId}`} className="text-blue-600 hover:text-blue-800">
-            ← Back to Class
-          </Link>
-        </div>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', py: 4 }}>
+      <Container maxWidth="md">
+        <Link href={`/classes/${params.classId}`} style={{ textDecoration: 'none' }}>
+          <Button startIcon={<ArrowBackIcon />} sx={{ mb: 3 }}>
+            Back to Class
+          </Button>
+        </Link>
 
-        <div className="card">
-          <h1 className="text-2xl font-bold mb-6">Edit Class</h1>
+        <Card elevation={3}>
+          <CardContent sx={{ p: 4 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+              <EditIcon sx={{ fontSize: 32, color: 'primary.main', mr: 2 }} />
+              <Typography variant="h4" component="h1">
+                Edit Class
+              </Typography>
+            </Box>
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
-              {error}
-            </div>
-          )}
+            {error && (
+              <Alert severity="error" sx={{ mb: 3 }}>
+                {error}
+              </Alert>
+            )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Class Name *
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="input-field"
-                  required
-                />
-              </div>
+            <Box component="form" onSubmit={handleSubmit}>
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Class Name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Classroom"
+                    value={classroom}
+                    onChange={(e) => setClassroom(e.target.value)}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Class Code"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Timing"
+                    value={timing}
+                    onChange={(e) => setTiming(e.target.value)}
+                    placeholder="e.g., Weds 10:10–11:30"
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Dates"
+                    value={dates}
+                    onChange={(e) => setDates(e.target.value)}
+                    placeholder="e.g., Jan 22 – May 2, 2026"
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>Status</InputLabel>
+                    <Select
+                      value={status}
+                      label="Status"
+                      onChange={(e) => setStatus(e.target.value as 'ACTIVE' | 'ARCHIVED')}
+                    >
+                      <MenuItem value="ACTIVE">Active</MenuItem>
+                      <MenuItem value="ARCHIVED">Archived</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Classroom *
-                </label>
-                <input
-                  type="text"
-                  value={classroom}
-                  onChange={(e) => setClassroom(e.target.value)}
-                  className="input-field"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Class Code *
-                </label>
-                <input
-                  type="text"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  className="input-field"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Timing *
-                </label>
-                <input
-                  type="text"
-                  value={timing}
-                  onChange={(e) => setTiming(e.target.value)}
-                  className="input-field"
-                  placeholder="e.g., Weds 10:10–11:30"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Dates *
-                </label>
-                <input
-                  type="text"
-                  value={dates}
-                  onChange={(e) => setDates(e.target.value)}
-                  className="input-field"
-                  placeholder="e.g., Jan 22 – May 2, 2026"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Status
-                </label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as 'ACTIVE' | 'ARCHIVED')}
-                  className="input-field"
+              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 4 }}>
+                <Link href={`/classes/${params.classId}`} style={{ textDecoration: 'none' }}>
+                  <Button variant="outlined">Cancel</Button>
+                </Link>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  disabled={saving}
                 >
-                  <option value="ACTIVE">Active</option>
-                  <option value="ARCHIVED">Archived</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="flex gap-3 justify-end">
-              <Link href={`/classes/${params.classId}`} className="btn-secondary">
-                Cancel
-              </Link>
-              <button
-                type="submit"
-                disabled={saving}
-                className="btn-primary"
-              >
-                {saving ? 'Saving...' : 'Save Changes'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
+                  {saving ? <CircularProgress size={24} /> : 'Save Changes'}
+                </Button>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+      </Container>
+    </Box>
   );
 }

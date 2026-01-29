@@ -3,6 +3,18 @@
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import {
+  Box,
+  Card,
+  CardContent,
+  TextField,
+  Button,
+  Typography,
+  Alert,
+  Container,
+  CircularProgress,
+} from '@mui/material';
+import { School as SchoolIcon } from '@mui/icons-material';
 import { loginAction } from './actions';
 
 export default function LoginPage() {
@@ -40,66 +52,89 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-6">Cold Call Randomizer</h1>
-        <h2 className="text-lg text-gray-600 text-center mb-6">Sign In</h2>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        bgcolor: 'background.default',
+      }}
+    >
+      <Container maxWidth="sm">
+        <Card elevation={3}>
+          <CardContent sx={{ p: 4 }}>
+            <Box sx={{ textAlign: 'center', mb: 4 }}>
+              <SchoolIcon sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
+              <Typography variant="h4" component="h1" gutterBottom>
+                Cold Call Randomizer
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                Sign in to your account
+              </Typography>
+            </Box>
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
-            {error}
-          </div>
-        )}
+            {error && (
+              <Alert severity="error" sx={{ mb: 3 }}>
+                {error}
+              </Alert>
+            )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="input-field"
-              required
-              autoComplete="email"
-            />
-          </div>
+            <Box component="form" onSubmit={handleSubmit}>
+              <TextField
+                fullWidth
+                id="email"
+                label="Email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                sx={{ mb: 2 }}
+              />
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input-field"
-              required
-              autoComplete="current-password"
-            />
-          </div>
+              <TextField
+                fullWidth
+                id="password"
+                label="Password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+                sx={{ mb: 3 }}
+              />
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full btn-primary"
-          >
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
+              <Button
+                type="submit"
+                fullWidth
+                variant="contained"
+                size="large"
+                disabled={loading}
+                sx={{ mb: 2 }}
+              >
+                {loading ? (
+                  <CircularProgress size={24} color="inherit" />
+                ) : (
+                  'Sign In'
+                )}
+              </Button>
 
-        <div className="mt-4 text-center">
-          <Link
-            href="/forgot-password"
-            className="text-sm text-blue-600 hover:text-blue-800"
-          >
-            Forgot your password?
-          </Link>
-        </div>
-      </div>
-    </div>
+              <Box sx={{ textAlign: 'center' }}>
+                <Link href="/forgot-password" style={{ textDecoration: 'none' }}>
+                  <Typography
+                    variant="body2"
+                    color="primary"
+                    sx={{ '&:hover': { textDecoration: 'underline' } }}
+                  >
+                    Forgot your password?
+                  </Typography>
+                </Link>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+      </Container>
+    </Box>
   );
 }

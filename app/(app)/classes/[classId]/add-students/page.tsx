@@ -4,6 +4,26 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Papa from 'papaparse';
+import {
+  Box,
+  Container,
+  Card,
+  CardContent,
+  TextField,
+  Button,
+  Typography,
+  Alert,
+  Paper,
+  Chip,
+  IconButton,
+  CircularProgress,
+} from '@mui/material';
+import {
+  ArrowBack as ArrowBackIcon,
+  Upload as UploadIcon,
+  PersonAdd as PersonAddIcon,
+  Delete as DeleteIcon,
+} from '@mui/icons-material';
 import { addStudentsAction, getClassNameAction } from './actions';
 
 interface Student {
@@ -50,14 +70,12 @@ export default function AddStudentsPage({ params }: { params: { classId: string 
       complete: (results) => {
         const data = results.data as any[];
 
-        // Validate headers
         const headers = Object.keys(data[0] || {}).map(h => h.toLowerCase().trim());
         if (!headers.includes('name') || !headers.includes('uni')) {
           setCsvError('CSV must have "name" and "uni" columns');
           return;
         }
 
-        // Parse and validate students
         const parsedStudents: Student[] = [];
         const errors: string[] = [];
 
@@ -84,7 +102,6 @@ export default function AddStudentsPage({ params }: { params: { classId: string 
       },
     });
 
-    // Clear the input
     e.target.value = '';
   };
 
@@ -113,7 +130,6 @@ export default function AddStudentsPage({ params }: { params: { classId: string 
       return;
     }
 
-    // Validate all students
     const invalidStudents = students.filter(s => !s.name.trim() || !s.uni.trim());
     if (invalidStudents.length > 0) {
       setError('All students must have a name and UNI');
@@ -143,118 +159,133 @@ export default function AddStudentsPage({ params }: { params: { classId: string 
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-600">Loading...</div>
-      </div>
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
+        <CircularProgress />
+      </Box>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <Link href={`/classes/${params.classId}`} className="text-blue-600 hover:text-blue-800">
-            ← Back to Class
-          </Link>
-        </div>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', py: 4 }}>
+      <Container maxWidth="md">
+        <Link href={`/classes/${params.classId}`} style={{ textDecoration: 'none' }}>
+          <Button startIcon={<ArrowBackIcon />} sx={{ mb: 3 }}>
+            Back to Class
+          </Button>
+        </Link>
 
-        <div className="card">
-          <h1 className="text-2xl font-bold mb-2">Add Students</h1>
-          <p className="text-gray-600 mb-6">{className}</p>
+        <Card elevation={3}>
+          <CardContent sx={{ p: 4 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+              <PersonAddIcon sx={{ fontSize: 32, color: 'success.main', mr: 2 }} />
+              <Typography variant="h4" component="h1">
+                Add Students
+              </Typography>
+            </Box>
+            <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 3 }}>
+              {className}
+            </Typography>
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
-              {error}
-            </div>
-          )}
+            {error && (
+              <Alert severity="error" sx={{ mb: 3 }}>
+                {error}
+              </Alert>
+            )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <h2 className="text-lg font-semibold mb-4">Students</h2>
+            <Box component="form" onSubmit={handleSubmit}>
+              <Typography variant="h6" gutterBottom>
+                Students
+              </Typography>
 
-              <div className="mb-4 flex gap-3">
-                <div>
-                  <label className="btn-primary cursor-pointer">
-                    Upload CSV
-                    <input
-                      type="file"
-                      accept=".csv"
-                      onChange={handleCsvUpload}
-                      className="hidden"
-                    />
-                  </label>
-                  <p className="text-xs text-gray-500 mt-1">
-                    CSV must have columns: name, uni
-                  </p>
-                </div>
-
-                <button
-                  type="button"
+              <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+                <Button
+                  component="label"
+                  variant="contained"
+                  startIcon={<UploadIcon />}
+                >
+                  Upload CSV
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={handleCsvUpload}
+                    hidden
+                  />
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<PersonAddIcon />}
                   onClick={addManualStudent}
-                  className="btn-secondary"
                 >
                   Add Student Manually
-                </button>
-              </div>
+                </Button>
+              </Box>
+
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
+                CSV must have columns: name, uni
+              </Typography>
 
               {csvError && (
-                <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded mb-4 text-sm">
+                <Alert severity="warning" sx={{ mb: 3 }}>
                   {csvError}
-                </div>
+                </Alert>
               )}
 
               {students.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-600">
-                    {students.length} student{students.length !== 1 ? 's' : ''} to be added
-                  </p>
+                <Box>
+                  <Chip
+                    label={`${students.length} student${students.length !== 1 ? 's' : ''} to be added`}
+                    color="success"
+                    variant="outlined"
+                    sx={{ mb: 2 }}
+                  />
 
-                  <div className="max-h-96 overflow-y-auto border rounded-lg p-4 bg-gray-50">
+                  <Paper variant="outlined" sx={{ p: 2, maxHeight: 400, overflow: 'auto' }}>
                     {students.map((student, idx) => (
-                      <div key={idx} className="flex gap-2 mb-2">
-                        <input
-                          type="text"
+                      <Box key={idx} sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
+                        <TextField
+                          size="small"
+                          label="Name"
                           value={student.name}
                           onChange={(e) => updateStudent(idx, 'name', e.target.value)}
-                          placeholder="Name"
-                          className="input-field flex-1"
+                          sx={{ flex: 1 }}
                         />
-                        <input
-                          type="text"
+                        <TextField
+                          size="small"
+                          label="UNI"
                           value={student.uni}
                           onChange={(e) => updateStudent(idx, 'uni', e.target.value)}
-                          placeholder="UNI"
-                          className="input-field w-32"
+                          sx={{ width: 150 }}
                         />
-                        <button
-                          type="button"
+                        <IconButton
+                          color="error"
                           onClick={() => removeStudent(idx)}
-                          className="px-3 py-2 text-red-600 hover:text-red-800"
+                          size="small"
                         >
-                          ✕
-                        </button>
-                      </div>
+                          <DeleteIcon />
+                        </IconButton>
+                      </Box>
                     ))}
-                  </div>
-                </div>
+                  </Paper>
+                </Box>
               )}
-            </div>
 
-            <div className="flex gap-3 justify-end">
-              <Link href={`/classes/${params.classId}`} className="btn-secondary">
-                Cancel
-              </Link>
-              <button
-                type="submit"
-                disabled={saving || students.length === 0}
-                className="btn-primary"
-              >
-                {saving ? 'Adding...' : `Add ${students.length} Student${students.length !== 1 ? 's' : ''}`}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
+              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 4 }}>
+                <Link href={`/classes/${params.classId}`} style={{ textDecoration: 'none' }}>
+                  <Button variant="outlined">Cancel</Button>
+                </Link>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  color="success"
+                  disabled={saving || students.length === 0}
+                >
+                  {saving ? <CircularProgress size={24} /> : `Add ${students.length} Student${students.length !== 1 ? 's' : ''}`}
+                </Button>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+      </Container>
+    </Box>
   );
 }

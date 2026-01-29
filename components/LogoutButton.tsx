@@ -1,6 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { Button } from '@mui/material';
+import { Logout as LogoutIcon } from '@mui/icons-material';
 import { logoutAction } from '@/app/(app)/actions';
 
 export function LogoutButton() {
@@ -13,8 +15,13 @@ export function LogoutButton() {
   };
 
   return (
-    <button onClick={handleLogout} className="btn-secondary">
+    <Button
+      onClick={handleLogout}
+      variant="outlined"
+      color="inherit"
+      startIcon={<LogoutIcon />}
+    >
       Logout
-    </button>
+    </Button>
   );
 }
