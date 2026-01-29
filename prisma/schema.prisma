@@ -1,0 +1,77 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   String                @id @default(cuid())
+  email                String                @unique
+  passwordHash         String
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  passwordResetTokens  PasswordResetToken[]
+}
+
+model Class {
+  id         String       @id @default(cuid())
+  name       String
+  classroom  String
+  code       String
+  timing     String
+  dates      String
+  status     String       @default("ACTIVE")
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  students   Student[]
+  coldCalls  ColdCall[]
+
+  @@index([status])
+}
+
+model Student {
+  id         String     @id @default(cuid())
+  classId    String
+  name       String
+  uni        String
+  createdAt  DateTime   @default(now())
+  class      Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  coldCalls  ColdCall[]
+
+  @@index([classId])
+  @@index([uni])
+}
+
+model ColdCall {
+  id         String    @id @default(cuid())
+  classId    String
+  studentId  String
+  calledAt   DateTime  @default(now())
+  score      Int?
+  notes      String?
+  createdAt  DateTime  @default(now())
+  class      Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student    Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([classId, calledAt])
+  @@index([studentId])
+}
+
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash])
+  @@index([userId])
+}
