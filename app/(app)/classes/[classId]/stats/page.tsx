@@ -3,6 +3,8 @@ import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
 import { StatsPage } from '@/components/StatsPage';
 
+export const dynamic = 'force-dynamic';
+
 interface StudentStats {
   id: string;
   name: string;

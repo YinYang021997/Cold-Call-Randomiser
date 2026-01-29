@@ -3,6 +3,8 @@ import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
 import { ClassDetail } from '@/components/ClassDetail';
 
+export const dynamic = 'force-dynamic';
+
 // Helper to format time
 function formatTime(time: string): string {
   const [hours, minutes] = time.split(':');

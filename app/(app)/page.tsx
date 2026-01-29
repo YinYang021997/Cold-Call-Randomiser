@@ -2,6 +2,8 @@ import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { HomePage } from '@/components/HomePage';
 
+export const dynamic = 'force-dynamic';
+
 // Helper to format time
 function formatTime(time: string): string {
   const [hours, minutes] = time.split(':');
