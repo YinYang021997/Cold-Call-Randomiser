@@ -46,7 +46,7 @@ export async function createPasswordResetToken(email: string) {
   if (resend) {
     try {
       await resend.emails.send({
-        from: process.env.RESEND_FROM || 'Cold Call Randomizer <onboarding@resend.dev>',
+        from: process.env.RESEND_FROM || 'Cold Call Randomizer <noreply@anmolbongirwar.com>',
         to: email,
         subject: 'Password Reset Request',
         html: `
