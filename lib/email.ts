@@ -3,9 +3,16 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { prisma } from './db';
 
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+function getResendClient() {
+  if (process.env.RESEND_API_KEY) {
+    return new Resend(process.env.RESEND_API_KEY);
+  }
+  return null;
+}
 
 export async function createPasswordResetToken(email: string) {
+  const resend = getResendClient();
+
   // Find user by email
   const user = await prisma.user.findUnique({
     where: { email },
