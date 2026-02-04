@@ -23,6 +23,7 @@ import {
   Casino as CasinoIcon,
   History as HistoryIcon,
   Analytics as AnalyticsIcon,
+  Slideshow as SlideshowIcon,
 } from '@mui/icons-material';
 import { SlotMachine } from './SlotMachine';
 import { HistoryTab } from './HistoryTab';
@@ -129,6 +130,15 @@ export function ClassDetail({ classData }: ClassDetailProps) {
                   disabled={navigating}
                 >
                   Add Students
+                </Button>
+                <Button
+                  variant="contained"
+                  color="secondary"
+                  startIcon={navigatingTo === 'present' ? <CircularProgress size={20} color="inherit" /> : <SlideshowIcon />}
+                  onClick={() => handleNavigation('present', `/classes/${classData.id}/present`)}
+                  disabled={navigating}
+                >
+                  Present
                 </Button>
               </Box>
             </Box>
