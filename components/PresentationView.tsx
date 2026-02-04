@@ -279,9 +279,6 @@ export function PresentationView({ classId, className, students }: PresentationV
           <Typography variant="h2" fontWeight="bold" color="white" sx={{ textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>
             🎉 {selectedStudent.name} 🎉
           </Typography>
-          <Typography variant="h5" color="rgba(255,255,255,0.9)" sx={{ mt: 1 }}>
-            {selectedStudent.uni}
-          </Typography>
         </Box>
       )}
 
