@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import confetti from 'canvas-confetti';
 import {
   Box,
   Paper,
@@ -32,6 +31,38 @@ interface PresentationViewProps {
   students: Student[];
 }
 
+// Confetti function that works in browser
+const fireConfetti = () => {
+  if (typeof window !== 'undefined') {
+    import('canvas-confetti').then((confettiModule) => {
+      const confetti = confettiModule.default;
+
+      // Big center burst
+      confetti({
+        particleCount: 200,
+        spread: 120,
+        origin: { y: 0.6 },
+      });
+
+      // Side bursts after delay
+      setTimeout(() => {
+        confetti({
+          particleCount: 100,
+          angle: 60,
+          spread: 80,
+          origin: { x: 0, y: 0.6 },
+        });
+        confetti({
+          particleCount: 100,
+          angle: 120,
+          spread: 80,
+          origin: { x: 1, y: 0.6 },
+        });
+      }, 300);
+    });
+  }
+};
+
 export function PresentationView({ classId, className, students }: PresentationViewProps) {
   const [isSpinning, setIsSpinning] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -42,17 +73,13 @@ export function PresentationView({ classId, className, students }: PresentationV
   const animationRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Calculate grid columns based on number of students - optimized for large display
-  const getGridColumns = useCallback(() => {
+  // Calculate optimal grid layout for fitting all students in viewport
+  const getGridLayout = useCallback(() => {
     const count = students.length;
-    if (count <= 6) return 3;
-    if (count <= 12) return 4;
-    if (count <= 20) return 5;
-    if (count <= 30) return 6;
-    if (count <= 42) return 7;
-    if (count <= 56) return 8;
-    if (count <= 72) return 9;
-    return 10;
+    // Calculate columns and rows to fit all students in a roughly square grid
+    const cols = Math.ceil(Math.sqrt(count * 1.5)); // Slightly wider than tall
+    const rows = Math.ceil(count / cols);
+    return { cols, rows };
   }, [students.length]);
 
   useEffect(() => {
@@ -160,27 +187,8 @@ export function PresentationView({ classId, className, students }: PresentationV
             setSelectedStudent(result.student!);
             setIsSpinning(false);
 
-            // Big confetti for presentation mode
-            confetti({
-              particleCount: 200,
-              spread: 120,
-              origin: { y: 0.6 },
-            });
-
-            setTimeout(() => {
-              confetti({
-                particleCount: 100,
-                angle: 60,
-                spread: 80,
-                origin: { x: 0 },
-              });
-              confetti({
-                particleCount: 100,
-                angle: 120,
-                spread: 80,
-                origin: { x: 1 },
-              });
-            }, 300);
+            // Fire confetti
+            fireConfetti();
 
             setTimeout(() => {
               router.refresh();
@@ -208,13 +216,13 @@ export function PresentationView({ classId, className, students }: PresentationV
     router.push(`/classes/${classId}`);
   };
 
-  const gridColumns = getGridColumns();
+  const { cols } = getGridLayout();
 
   return (
     <Box
       ref={containerRef}
       sx={{
-        minHeight: '100vh',
+        height: '100vh',
         width: '100vw',
         bgcolor: '#1a1a2e',
         background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
@@ -229,76 +237,83 @@ export function PresentationView({ classId, className, students }: PresentationV
         zIndex: 9999,
       }}
     >
-      {/* Top Bar */}
+      {/* Top Bar - Compact */}
       <Box
         sx={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          p: 2,
+          px: 2,
+          py: 1,
           borderBottom: '1px solid rgba(255,255,255,0.1)',
+          flexShrink: 0,
         }}
       >
-        <Typography variant="h5" fontWeight="bold" color="white">
+        <Typography variant="h6" fontWeight="bold" color="white">
           {className}
         </Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
-          <IconButton onClick={toggleFullscreen} sx={{ color: 'white' }}>
+          <IconButton onClick={toggleFullscreen} sx={{ color: 'white' }} size="small">
             {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
           </IconButton>
-          <IconButton onClick={handleExit} sx={{ color: 'white' }}>
+          <IconButton onClick={handleExit} sx={{ color: 'white' }} size="small">
             <CloseIcon />
           </IconButton>
         </Box>
       </Box>
 
       {error && (
-        <Alert severity="error" sx={{ mx: 2, mt: 2 }}>
+        <Alert severity="error" sx={{ mx: 2, mt: 1, flexShrink: 0 }}>
           {error}
         </Alert>
       )}
 
-      {/* Winner Banner - Large and Prominent */}
+      {/* Winner Banner - Shows when selected */}
       {selectedStudent && (
         <Box
           sx={{
-            mx: 3,
-            mt: 2,
-            p: 3,
-            borderRadius: 3,
+            mx: 2,
+            mt: 1,
+            p: 2,
+            borderRadius: 2,
             background: 'linear-gradient(135deg, #4caf50 0%, #8bc34a 100%)',
             textAlign: 'center',
             boxShadow: '0 0 40px rgba(76, 175, 80, 0.5)',
             animation: 'pulse 1.5s ease-in-out infinite',
+            flexShrink: 0,
             '@keyframes pulse': {
               '0%, 100%': { transform: 'scale(1)' },
               '50%': { transform: 'scale(1.02)' },
             },
           }}
         >
-          <Typography variant="h2" fontWeight="bold" color="white" sx={{ textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>
+          <Typography variant="h3" fontWeight="bold" color="white" sx={{ textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>
             🎉 {selectedStudent.name} 🎉
           </Typography>
         </Box>
       )}
 
-      {/* Student Grid - Main Area */}
+      {/* Student Grid - Takes remaining space, no scroll */}
       <Box
         sx={{
           flex: 1,
-          overflow: 'auto',
-          p: 3,
+          overflow: 'hidden',
+          p: 1.5,
           display: 'flex',
           flexDirection: 'column',
+          minHeight: 0,
         }}
       >
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: `repeat(${gridColumns}, 1fr)`,
-            gap: 1.5,
+            gridTemplateColumns: `repeat(${cols}, 1fr)`,
+            gap: 0.75,
             flex: 1,
-            alignContent: 'center',
+            alignContent: 'stretch',
+            '& > *': {
+              minHeight: 0,
+            },
           }}
         >
           {students.map((student, idx) => {
@@ -310,12 +325,14 @@ export function PresentationView({ classId, className, students }: PresentationV
                 key={student.id}
                 elevation={isHighlighted || isSelected ? 12 : 2}
                 sx={{
-                  py: students.length > 50 ? 1.5 : 2,
-                  px: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  px: 1,
                   textAlign: 'center',
-                  borderRadius: 2,
+                  borderRadius: 1,
                   transition: 'all 0.08s ease-in-out',
-                  transform: isHighlighted || isSelected ? 'scale(1.05)' : 'scale(1)',
+                  transform: isHighlighted || isSelected ? 'scale(1.03)' : 'scale(1)',
                   bgcolor: isSelected
                     ? '#4caf50'
                     : isHighlighted
@@ -323,24 +340,25 @@ export function PresentationView({ classId, className, students }: PresentationV
                     : 'rgba(255,255,255,0.95)',
                   color: isSelected || isHighlighted ? 'white' : '#1a1a2e',
                   border: isSelected
-                    ? '3px solid #81c784'
+                    ? '2px solid #81c784'
                     : isHighlighted
-                    ? '3px solid #64b5f6'
-                    : '2px solid transparent',
+                    ? '2px solid #64b5f6'
+                    : '1px solid transparent',
                   boxShadow: isSelected
-                    ? '0 0 30px rgba(76, 175, 80, 0.7)'
+                    ? '0 0 20px rgba(76, 175, 80, 0.7)'
                     : isHighlighted
-                    ? '0 0 20px rgba(25, 118, 210, 0.6)'
-                    : '0 2px 8px rgba(0,0,0,0.15)',
+                    ? '0 0 15px rgba(25, 118, 210, 0.6)'
+                    : '0 1px 4px rgba(0,0,0,0.15)',
                 }}
               >
                 <Typography
                   fontWeight={isSelected ? 'bold' : 'medium'}
                   sx={{
-                    fontSize: students.length > 60 ? '0.9rem' : students.length > 40 ? '1rem' : students.length > 20 ? '1.1rem' : '1.2rem',
+                    fontSize: students.length > 70 ? '0.7rem' : students.length > 50 ? '0.8rem' : students.length > 30 ? '0.9rem' : '1rem',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
+                    lineHeight: 1.2,
                   }}
                 >
                   {student.name}
@@ -351,19 +369,21 @@ export function PresentationView({ classId, className, students }: PresentationV
         </Box>
       </Box>
 
-      {/* Bottom Bar with Spin Button */}
+      {/* Bottom Bar with Spin Button - Compact */}
       <Box
         sx={{
-          p: 3,
+          px: 2,
+          py: 1.5,
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
           gap: 3,
           borderTop: '1px solid rgba(255,255,255,0.1)',
           bgcolor: 'rgba(0,0,0,0.2)',
+          flexShrink: 0,
         }}
       >
-        <Typography variant="body1" color="rgba(255,255,255,0.7)">
+        <Typography variant="body2" color="rgba(255,255,255,0.7)">
           {students.length} students
         </Typography>
 
@@ -373,11 +393,11 @@ export function PresentationView({ classId, className, students }: PresentationV
           onClick={handleSpin}
           disabled={isSpinning || students.length === 0}
           sx={{
-            px: 8,
-            py: 2,
-            fontSize: '1.5rem',
+            px: 6,
+            py: 1.5,
+            fontSize: '1.25rem',
             fontWeight: 'bold',
-            borderRadius: 3,
+            borderRadius: 2,
             background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e53 100%)',
             boxShadow: '0 4px 20px rgba(255, 107, 107, 0.4)',
             '&:hover': {
@@ -389,13 +409,13 @@ export function PresentationView({ classId, className, students }: PresentationV
               color: 'rgba(255,255,255,0.5)',
             },
           }}
-          startIcon={isSpinning ? <CircularProgress size={28} color="inherit" /> : <CasinoIcon sx={{ fontSize: 32 }} />}
+          startIcon={isSpinning ? <CircularProgress size={24} color="inherit" /> : <CasinoIcon sx={{ fontSize: 28 }} />}
         >
           {isSpinning ? 'Spinning...' : 'SPIN'}
         </Button>
 
-        <Typography variant="body1" color="rgba(255,255,255,0.7)">
-          Press F11 for fullscreen
+        <Typography variant="body2" color="rgba(255,255,255,0.7)">
+          F11 for fullscreen
         </Typography>
       </Box>
     </Box>
