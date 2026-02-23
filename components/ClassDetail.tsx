@@ -24,14 +24,17 @@ import {
   History as HistoryIcon,
   Analytics as AnalyticsIcon,
   Slideshow as SlideshowIcon,
+  Group as GroupIcon,
 } from '@mui/icons-material';
 import { SlotMachine } from './SlotMachine';
 import { HistoryTab } from './HistoryTab';
+import { TeamsTab } from './TeamsTab';
 
 interface Student {
   id: string;
   name: string;
   uni: string;
+  teamId: string | null;
 }
 
 interface ColdCall {
@@ -40,6 +43,13 @@ interface ColdCall {
   score: number | null;
   notes: string | null;
   student: Student;
+}
+
+interface Team {
+  id: string;
+  name: string;
+  color: string;
+  students: Student[];
 }
 
 interface ClassData {
@@ -52,6 +62,7 @@ interface ClassData {
   status: string;
   students: Student[];
   coldCalls: ColdCall[];
+  teams: Team[];
 }
 
 interface ClassDetailProps {
@@ -65,8 +76,8 @@ export function ClassDetail({ classData }: ClassDetailProps) {
   const router = useRouter();
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    if (newValue === 2) {
-      // Stats tab - navigate to stats page
+    if (newValue === 3) {
+      // Stats tab — navigate to stats page
       setNavigating(true);
       setNavigatingTo('stats');
       router.push(`/classes/${classData.id}/stats`);
@@ -169,6 +180,7 @@ export function ClassDetail({ classData }: ClassDetailProps) {
             <Tabs value={activeTab} onChange={handleTabChange}>
               <Tab icon={<CasinoIcon />} iconPosition="start" label="Cold Call" disabled={navigating} />
               <Tab icon={<HistoryIcon />} iconPosition="start" label="History" disabled={navigating} />
+              <Tab icon={<GroupIcon />} iconPosition="start" label="Teams" disabled={navigating} />
               <Tab
                 icon={navigatingTo === 'stats' ? <CircularProgress size={20} /> : <AnalyticsIcon />}
                 iconPosition="start"
@@ -185,6 +197,14 @@ export function ClassDetail({ classData }: ClassDetailProps) {
 
             {activeTab === 1 && (
               <HistoryTab coldCalls={classData.coldCalls} />
+            )}
+
+            {activeTab === 2 && (
+              <TeamsTab
+                classId={classData.id}
+                students={classData.students}
+                teams={classData.teams}
+              />
             )}
           </CardContent>
         </Card>

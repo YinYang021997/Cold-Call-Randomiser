@@ -4,6 +4,136 @@ import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { updateScoreSchema } from '@/lib/validators';
 
+// ── Team CRUD ──────────────────────────────────────────────────────────────
+
+export async function createTeamAction(classId: string, name: string, color: string) {
+  const session = await requireAuth();
+
+  try {
+    const classData = await prisma.class.findUnique({
+      where: { id: classId, userId: session.userId },
+    });
+    if (!classData) return { error: 'Class not found' };
+
+    const team = await prisma.team.create({
+      data: { classId, name: name.trim(), color },
+    });
+    return { team };
+  } catch (error) {
+    console.error('Error creating team:', error);
+    return { error: 'Failed to create team.' };
+  }
+}
+
+export async function updateTeamAction(teamId: string, classId: string, name: string, color: string) {
+  const session = await requireAuth();
+
+  try {
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+      include: { class: true },
+    });
+    if (!team || team.class.userId !== session.userId) return { error: 'Team not found' };
+
+    const updated = await prisma.team.update({
+      where: { id: teamId },
+      data: { name: name.trim(), color },
+    });
+    return { team: updated };
+  } catch (error) {
+    console.error('Error updating team:', error);
+    return { error: 'Failed to update team.' };
+  }
+}
+
+export async function deleteTeamAction(teamId: string, classId: string) {
+  const session = await requireAuth();
+
+  try {
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+      include: { class: true },
+    });
+    if (!team || team.class.userId !== session.userId) return { error: 'Team not found' };
+
+    // Unassign all students first (onDelete: SetNull handles this in the DB,
+    // but we update explicitly so the UI refresh shows correct state)
+    await prisma.student.updateMany({
+      where: { teamId },
+      data: { teamId: null },
+    });
+
+    await prisma.team.delete({ where: { id: teamId } });
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting team:', error);
+    return { error: 'Failed to delete team.' };
+  }
+}
+
+export async function assignStudentToTeamAction(
+  studentId: string,
+  teamId: string | null,
+  classId: string,
+) {
+  const session = await requireAuth();
+
+  try {
+    const classData = await prisma.class.findUnique({
+      where: { id: classId, userId: session.userId },
+    });
+    if (!classData) return { error: 'Class not found' };
+
+    await prisma.student.update({
+      where: { id: studentId },
+      data: { teamId },
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Error assigning student to team:', error);
+    return { error: 'Failed to assign student.' };
+  }
+}
+
+// ── Team cold call ─────────────────────────────────────────────────────────
+
+export async function spinTeamColdCallAction(classId: string) {
+  const session = await requireAuth();
+
+  try {
+    const classData = await prisma.class.findUnique({
+      where: { id: classId, userId: session.userId },
+    });
+    if (!classData) return { error: 'Class not found' };
+
+    // Only consider teams that have at least one student
+    const teams = await prisma.team.findMany({
+      where: { classId, students: { some: {} } },
+      include: { students: true },
+    });
+
+    if (teams.length === 0) return { error: 'No teams with students found' };
+
+    const selectedTeam = teams[Math.floor(Math.random() * teams.length)];
+    const selectedStudent =
+      selectedTeam.students[Math.floor(Math.random() * selectedTeam.students.length)];
+
+    await prisma.coldCall.create({
+      data: { classId, studentId: selectedStudent.id, teamId: selectedTeam.id },
+    });
+
+    return {
+      team: { id: selectedTeam.id, name: selectedTeam.name, color: selectedTeam.color },
+      student: { id: selectedStudent.id, name: selectedStudent.name, uni: selectedStudent.uni },
+    };
+  } catch (error) {
+    console.error('Error spinning team cold call:', error);
+    return { error: 'Failed to select team. Please try again.' };
+  }
+}
+
+// ── Individual spin ────────────────────────────────────────────────────────
+
 export async function spinSlotMachineAction(classId: string) {
   const session = await requireAuth();
 

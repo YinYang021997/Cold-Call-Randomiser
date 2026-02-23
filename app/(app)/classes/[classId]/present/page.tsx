@@ -14,6 +14,13 @@ export default async function PresentPage({ params }: { params: { classId: strin
       students: {
         orderBy: { name: 'asc' },
       },
+      teams: {
+        where: { students: { some: {} } },
+        include: {
+          students: { orderBy: { name: 'asc' } },
+        },
+        orderBy: { createdAt: 'asc' },
+      },
     },
   });
 
@@ -29,6 +36,16 @@ export default async function PresentPage({ params }: { params: { classId: strin
         id: s.id,
         name: s.name,
         uni: s.uni,
+      }))}
+      teams={classData.teams.map(t => ({
+        id: t.id,
+        name: t.name,
+        color: t.color,
+        students: t.students.map(s => ({
+          id: s.id,
+          name: s.name,
+          uni: s.uni,
+        })),
       }))}
     />
   );

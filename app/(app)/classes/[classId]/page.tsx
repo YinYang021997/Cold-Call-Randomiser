@@ -45,6 +45,12 @@ export default async function ClassPage({ params }: { params: { classId: string 
         include: { student: true },
         orderBy: { calledAt: 'desc' },
       },
+      teams: {
+        include: {
+          students: { orderBy: { name: 'asc' } },
+        },
+        orderBy: { createdAt: 'asc' },
+      },
     },
   });
 
@@ -61,8 +67,24 @@ export default async function ClassPage({ params }: { params: { classId: string 
     timing: `${formatTime(classData.startTime)} - ${formatTime(classData.endTime)}`,
     dates: `${formatDate(classData.startDate)} - ${formatDate(classData.endDate)}`,
     status: computeStatus(classData.endDate),
-    students: classData.students,
+    students: classData.students.map((s) => ({
+      id: s.id,
+      name: s.name,
+      uni: s.uni,
+      teamId: s.teamId,
+    })),
     coldCalls: classData.coldCalls,
+    teams: classData.teams.map((t) => ({
+      id: t.id,
+      name: t.name,
+      color: t.color,
+      students: t.students.map((s) => ({
+        id: s.id,
+        name: s.name,
+        uni: s.uni,
+        teamId: s.teamId,
+      })),
+    })),
   };
 
   return <ClassDetail classData={transformedClassData} />;

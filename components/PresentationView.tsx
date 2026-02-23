@@ -16,8 +16,9 @@ import {
   Close as CloseIcon,
   Fullscreen as FullscreenIcon,
   FullscreenExit as FullscreenExitIcon,
+  Group as GroupIcon,
 } from '@mui/icons-material';
-import { spinSlotMachineAction } from '@/app/(app)/classes/[classId]/actions';
+import { spinSlotMachineAction, spinTeamColdCallAction } from '@/app/(app)/classes/[classId]/actions';
 
 interface Student {
   id: string;
@@ -25,11 +26,21 @@ interface Student {
   uni: string;
 }
 
+interface Team {
+  id: string;
+  name: string;
+  color: string;
+  students: Student[];
+}
+
 interface PresentationViewProps {
   classId: string;
   className: string;
   students: Student[];
+  teams: Team[];
 }
+
+type AnimationPhase = 'idle' | 'team' | 'team_pause' | 'student' | 'done';
 
 // Returns display name: full name if short enough, otherwise first name only
 function getDisplayName(name: string): string {
@@ -37,17 +48,38 @@ function getDisplayName(name: string): string {
   return name.split(' ')[0];
 }
 
-export function PresentationView({ classId, className, students }: PresentationViewProps) {
+export function PresentationView({ classId, className, students, teams }: PresentationViewProps) {
+  // ── Individual mode state ──────────────────────────────────────────────
   const [isSpinning, setIsSpinning] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
+
+  // ── Team mode state ────────────────────────────────────────────────────
+  const [animationPhase, setAnimationPhase] = useState<AnimationPhase>('idle');
+  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+  const [highlightedTeamIndex, setHighlightedTeamIndex] = useState<number | null>(null);
+  const [highlightedMemberIndex, setHighlightedMemberIndex] = useState<number | null>(null);
+  const [selectedMember, setSelectedMember] = useState<Student | null>(null);
+
   const [error, setError] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const router = useRouter();
   const animationRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Fire confetti using default canvas (appended to body, renders above everything)
+  // Teams that have at least one member
+  const eligibleTeams = teams.filter((t) => t.students.length > 0);
+  const hasTeams = eligibleTeams.length > 0;
+
+  const isTeamMode = animationPhase !== 'idle' && animationPhase !== 'done'
+    ? true
+    : false;
+  // Simpler: derive "currently showing teams grid" from phase
+  const showingTeams = animationPhase === 'team' || animationPhase === 'team_pause';
+  const showingMembers = animationPhase === 'student';
+  const isAnySpinning = isSpinning || animationPhase === 'team' || animationPhase === 'team_pause' || animationPhase === 'student';
+
+  // Fire confetti
   const fireConfetti = useCallback(() => {
     if (typeof window === 'undefined') return;
     import('canvas-confetti').then(({ default: confetti }) => {
@@ -59,7 +91,7 @@ export function PresentationView({ classId, className, students }: PresentationV
     });
   }, []);
 
-  // Grid columns tuned for 75 students on a widescreen
+  // Grid columns for individual mode
   const cols = useCallback(() => {
     const n = students.length;
     if (n <= 8) return 4;
@@ -70,6 +102,19 @@ export function PresentationView({ classId, className, students }: PresentationV
     if (n <= 64) return 9;
     return 10;
   }, [students.length])();
+
+  // Grid columns for team cards
+  const teamCols = Math.min(eligibleTeams.length, 5);
+
+  // Grid columns for team members
+  const memberCols = useCallback(() => {
+    if (!selectedTeam) return 3;
+    const n = selectedTeam.students.length;
+    if (n <= 4) return 2;
+    if (n <= 9) return 3;
+    if (n <= 16) return 4;
+    return 5;
+  }, [selectedTeam])();
 
   useEffect(() => {
     return () => { if (animationRef.current) clearTimeout(animationRef.current); };
@@ -91,10 +136,15 @@ export function PresentationView({ classId, className, students }: PresentationV
     return () => document.removeEventListener('fullscreenchange', h);
   }, []);
 
+  // ── Individual spin ──────────────────────────────────────────────────────
+
   const handleSpin = async () => {
-    if (isSpinning || students.length === 0) return;
+    if (isAnySpinning || students.length === 0) return;
     setError('');
     setSelectedStudent(null);
+    setSelectedTeam(null);
+    setSelectedMember(null);
+    setAnimationPhase('idle');
     setIsSpinning(true);
 
     try {
@@ -153,12 +203,388 @@ export function PresentationView({ classId, className, students }: PresentationV
     }
   };
 
+  // ── Team spin ────────────────────────────────────────────────────────────
+
+  const handleTeamSpin = async () => {
+    if (isAnySpinning || eligibleTeams.length === 0) return;
+    setError('');
+    setSelectedStudent(null);
+    setSelectedTeam(null);
+    setSelectedMember(null);
+    setHighlightedIndex(null);
+    setHighlightedTeamIndex(null);
+    setHighlightedMemberIndex(null);
+
+    // Kick off server action first (runs in parallel with animation)
+    const resultPromise = spinTeamColdCallAction(classId);
+
+    // Phase 1: animate teams
+    setAnimationPhase('team');
+
+    let teamHopCount = 0;
+    const totalTeamHops = 25 + Math.floor(Math.random() * 15);
+    let teamDelay = 60;
+
+    const animateTeamHop = () => {
+      setHighlightedTeamIndex(Math.floor(Math.random() * eligibleTeams.length));
+      teamHopCount++;
+      if (teamHopCount > totalTeamHops * 0.6) teamDelay += 25;
+      if (teamHopCount > totalTeamHops * 0.8) teamDelay += 50;
+      if (teamHopCount < totalTeamHops) animationRef.current = setTimeout(animateTeamHop, teamDelay);
+    };
+    animateTeamHop();
+
+    try {
+      const result = await resultPromise;
+
+      if (result.error || !result.team || !result.student) {
+        setError(result.error || 'Failed to select a team');
+        setAnimationPhase('idle');
+        setHighlightedTeamIndex(null);
+        if (animationRef.current) clearTimeout(animationRef.current);
+        return;
+      }
+
+      const winningTeamIndex = eligibleTeams.findIndex(t => t.id === result.team!.id);
+      const winningTeam = eligibleTeams[winningTeamIndex];
+
+      // Wait for team animation to finish, then do final hops
+      setTimeout(() => {
+        if (animationRef.current) clearTimeout(animationRef.current);
+
+        let finalTeamHops = 0;
+        let finalTeamDelay = 220;
+
+        const finalTeamAnimation = () => {
+          if (finalTeamHops < 5) {
+            setHighlightedTeamIndex(Math.floor(Math.random() * eligibleTeams.length));
+            finalTeamHops++;
+            finalTeamDelay += 110;
+            animationRef.current = setTimeout(finalTeamAnimation, finalTeamDelay);
+          } else {
+            // Land on the winning team
+            setHighlightedTeamIndex(winningTeamIndex);
+            setSelectedTeam(winningTeam);
+            setAnimationPhase('team_pause');
+
+            // Pause 600ms to let the team selection sink in, then transition to members
+            animationRef.current = setTimeout(() => {
+              setAnimationPhase('student');
+              setHighlightedTeamIndex(null);
+
+              const members = winningTeam.students;
+              let memberHopCount = 0;
+              const totalMemberHops = 20 + Math.floor(Math.random() * 10);
+              let memberDelay = 70;
+
+              const animateMemberHop = () => {
+                setHighlightedMemberIndex(Math.floor(Math.random() * members.length));
+                memberHopCount++;
+                if (memberHopCount > totalMemberHops * 0.6) memberDelay += 25;
+                if (memberHopCount > totalMemberHops * 0.8) memberDelay += 55;
+                if (memberHopCount < totalMemberHops)
+                  animationRef.current = setTimeout(animateMemberHop, memberDelay);
+              };
+              animateMemberHop();
+
+              // Wait for member animation, then final member hops
+              setTimeout(() => {
+                if (animationRef.current) clearTimeout(animationRef.current);
+
+                const winningMemberIndex = members.findIndex(s => s.id === result.student!.id);
+                let finalMemberHops = 0;
+                let finalMemberDelay = 220;
+
+                const finalMemberAnimation = () => {
+                  if (finalMemberHops < 5) {
+                    setHighlightedMemberIndex(Math.floor(Math.random() * members.length));
+                    finalMemberHops++;
+                    finalMemberDelay += 110;
+                    animationRef.current = setTimeout(finalMemberAnimation, finalMemberDelay);
+                  } else {
+                    setHighlightedMemberIndex(winningMemberIndex);
+                    setSelectedMember(result.student!);
+                    setAnimationPhase('done');
+                    fireConfetti();
+                    setTimeout(() => router.refresh(), 2000);
+                  }
+                };
+                finalMemberAnimation();
+              }, totalMemberHops * 70);
+
+            }, 600);
+          }
+        };
+        finalTeamAnimation();
+      }, totalTeamHops * 70);
+
+    } catch {
+      setError('An error occurred. Please try again.');
+      setAnimationPhase('idle');
+      setHighlightedTeamIndex(null);
+      if (animationRef.current) clearTimeout(animationRef.current);
+    }
+  };
+
   const handleExit = () => {
     if (document.fullscreenElement) document.exitFullscreen();
     router.push(`/classes/${classId}`);
   };
 
   const rows = Math.ceil(students.length / cols);
+
+  // ── Determine what grid to render ────────────────────────────────────────
+
+  const renderGrid = () => {
+    // Team cold call — phase 1: show team cards
+    if (showingTeams) {
+      const teamRows = Math.ceil(eligibleTeams.length / teamCols);
+      return (
+        <Box sx={{
+          flex: 1,
+          display: 'grid',
+          gridTemplateColumns: `repeat(${teamCols}, 1fr)`,
+          gridTemplateRows: `repeat(${teamRows}, 1fr)`,
+          gap: 1,
+        }}>
+          {eligibleTeams.map((team, idx) => {
+            const isHighlighted = highlightedTeamIndex === idx;
+            const isSelected = selectedTeam?.id === team.id && animationPhase === 'team_pause';
+            return (
+              <Paper
+                key={team.id}
+                elevation={isHighlighted || isSelected ? 8 : 2}
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                  minHeight: 0,
+                  p: 1,
+                  borderRadius: 2,
+                  transition: 'all 0.09s ease-in-out',
+                  transform: isHighlighted || isSelected ? 'scale(1.06)' : 'scale(1)',
+                  bgcolor: isSelected
+                    ? team.color
+                    : isHighlighted
+                      ? `${team.color}cc`
+                      : `${team.color}22`,
+                  border: isSelected
+                    ? `3px solid ${team.color}`
+                    : isHighlighted
+                      ? `2px solid ${team.color}`
+                      : `1px solid ${team.color}44`,
+                  boxShadow: isSelected
+                    ? `0 0 24px ${team.color}88`
+                    : isHighlighted
+                      ? `0 0 16px ${team.color}66`
+                      : undefined,
+                }}
+              >
+                <GroupIcon sx={{
+                  fontSize: '2rem',
+                  mb: 0.5,
+                  color: isSelected || isHighlighted ? '#fff' : team.color,
+                }} />
+                <Typography
+                  fontWeight="bold"
+                  sx={{
+                    color: isSelected || isHighlighted ? '#fff' : team.color,
+                    fontSize: eligibleTeams.length > 6 ? '0.85rem' : '1rem',
+                    textAlign: 'center',
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {team.name}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{ color: isSelected || isHighlighted ? 'rgba(255,255,255,0.8)' : `${team.color}99` }}
+                >
+                  {team.students.length} {team.students.length === 1 ? 'student' : 'students'}
+                </Typography>
+              </Paper>
+            );
+          })}
+        </Box>
+      );
+    }
+
+    // Team cold call — phase 2: show members of selected team
+    if (showingMembers && selectedTeam) {
+      const members = selectedTeam.students;
+      const mCols = memberCols;
+      const mRows = Math.ceil(members.length / mCols);
+      return (
+        <Box sx={{
+          flex: 1,
+          display: 'grid',
+          gridTemplateColumns: `repeat(${mCols}, 1fr)`,
+          gridTemplateRows: `repeat(${mRows}, 1fr)`,
+          gap: 0.75,
+        }}>
+          {members.map((member, idx) => {
+            const isHighlighted = highlightedMemberIndex === idx;
+            return (
+              <Paper
+                key={member.id}
+                elevation={isHighlighted ? 6 : 1}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                  minHeight: 0,
+                  p: 0.75,
+                  borderRadius: 1.5,
+                  transition: 'all 0.09s ease-in-out',
+                  transform: isHighlighted ? 'scale(1.05)' : 'scale(1)',
+                  bgcolor: isHighlighted ? selectedTeam.color : `${selectedTeam.color}22`,
+                  color: isHighlighted ? '#fff' : selectedTeam.color,
+                  border: isHighlighted
+                    ? `2px solid ${selectedTeam.color}`
+                    : `1px solid ${selectedTeam.color}44`,
+                  boxShadow: isHighlighted ? `0 0 14px ${selectedTeam.color}66` : undefined,
+                }}
+              >
+                <Typography
+                  fontWeight="medium"
+                  sx={{
+                    fontSize: members.length > 10 ? '0.8rem' : '0.95rem',
+                    lineHeight: 1.15,
+                    textAlign: 'center',
+                    wordBreak: 'break-word',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {getDisplayName(member.name)}
+                </Typography>
+              </Paper>
+            );
+          })}
+        </Box>
+      );
+    }
+
+    // Default: individual student grid (idle / done states for individual mode)
+    return (
+      <Box sx={{
+        flex: 1,
+        display: 'grid',
+        gridTemplateColumns: `repeat(${cols}, 1fr)`,
+        gridTemplateRows: `repeat(${rows}, 1fr)`,
+        gap: 0.5,
+      }}>
+        {students.map((student, idx) => {
+          const isHighlighted = highlightedIndex === idx && isSpinning;
+          const isSelected = selectedStudent?.id === student.id;
+
+          return (
+            <Paper
+              key={student.id}
+              elevation={isHighlighted || isSelected ? 6 : 1}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+                minHeight: 0,
+                p: 0.5,
+                borderRadius: 1,
+                transition: 'all 0.08s ease-in-out',
+                transform: isHighlighted || isSelected ? 'scale(1.03)' : 'scale(1)',
+                bgcolor: isSelected ? '#4caf50' : isHighlighted ? '#1976d2' : 'rgba(255,255,255,0.95)',
+                color: isSelected || isHighlighted ? '#fff' : '#1a1a2e',
+                border: isSelected ? '2px solid #81c784' : isHighlighted ? '2px solid #64b5f6' : '1px solid rgba(0,0,0,0.08)',
+                boxShadow: isSelected ? '0 0 16px rgba(76,175,80,0.6)' : isHighlighted ? '0 0 12px rgba(25,118,210,0.5)' : undefined,
+              }}
+            >
+              <Typography
+                fontWeight={isSelected ? 'bold' : 'medium'}
+                sx={{
+                  fontSize: students.length > 60 ? '0.62rem' : students.length > 40 ? '0.72rem' : students.length > 25 ? '0.82rem' : '0.92rem',
+                  lineHeight: 1.15,
+                  textAlign: 'center',
+                  wordBreak: 'break-word',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                }}
+              >
+                {getDisplayName(student.name)}
+              </Typography>
+            </Paper>
+          );
+        })}
+      </Box>
+    );
+  };
+
+  // ── Winner banner content ─────────────────────────────────────────────────
+
+  const renderWinnerBanner = () => {
+    // Team cold call winner
+    if (animationPhase === 'done' && selectedTeam && selectedMember) {
+      return (
+        <Box sx={{
+          mx: 2, mt: 1, p: 1.5, borderRadius: 2, flexShrink: 0,
+          background: `linear-gradient(135deg, ${selectedTeam.color} 0%, ${selectedTeam.color}cc 100%)`,
+          textAlign: 'center',
+          boxShadow: `0 0 40px ${selectedTeam.color}66`,
+          animation: 'pulse 1.5s ease-in-out infinite',
+          '@keyframes pulse': { '0%, 100%': { transform: 'scale(1)' }, '50%': { transform: 'scale(1.02)' } },
+        }}>
+          <Typography variant="body2" color="rgba(255,255,255,0.85)" fontWeight="bold" sx={{ letterSpacing: 2, textTransform: 'uppercase' }}>
+            {selectedTeam.name}
+          </Typography>
+          <Typography variant="h3" fontWeight="bold" color="white" sx={{ textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>
+            🎉 {selectedMember.name} 🎉
+          </Typography>
+        </Box>
+      );
+    }
+
+    // Team pause — show selected team name while transitioning
+    if (animationPhase === 'team_pause' && selectedTeam) {
+      return (
+        <Box sx={{
+          mx: 2, mt: 1, p: 1, borderRadius: 2, flexShrink: 0,
+          background: `linear-gradient(135deg, ${selectedTeam.color} 0%, ${selectedTeam.color}cc 100%)`,
+          textAlign: 'center',
+          boxShadow: `0 0 20px ${selectedTeam.color}55`,
+        }}>
+          <Typography variant="h5" fontWeight="bold" color="white">
+            Team: {selectedTeam.name} — picking a student…
+          </Typography>
+        </Box>
+      );
+    }
+
+    // Individual winner
+    if (selectedStudent && !isSpinning && animationPhase === 'idle') {
+      return (
+        <Box sx={{
+          mx: 2, mt: 1, p: 1.5, borderRadius: 2, flexShrink: 0,
+          background: 'linear-gradient(135deg, #4caf50 0%, #8bc34a 100%)',
+          textAlign: 'center',
+          boxShadow: '0 0 40px rgba(76, 175, 80, 0.5)',
+          animation: 'pulse 1.5s ease-in-out infinite',
+          '@keyframes pulse': { '0%, 100%': { transform: 'scale(1)' }, '50%': { transform: 'scale(1.02)' } },
+        }}>
+          <Typography variant="h3" fontWeight="bold" color="white" sx={{ textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>
+            🎉 {selectedStudent.name} 🎉
+          </Typography>
+        </Box>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <Box
@@ -176,7 +602,6 @@ export function PresentationView({ classId, className, students }: PresentationV
         left: 0,
         right: 0,
         bottom: 0,
-        // No zIndex here — allows confetti canvas (on body) to render on top
       }}
     >
       {/* Top Bar */}
@@ -194,88 +619,43 @@ export function PresentationView({ classId, className, students }: PresentationV
 
       {error && <Alert severity="error" sx={{ mx: 2, mt: 1, flexShrink: 0 }}>{error}</Alert>}
 
-      {/* Winner Banner */}
-      {selectedStudent && (
-        <Box sx={{
-          mx: 2, mt: 1, p: 1.5, borderRadius: 2, flexShrink: 0,
-          background: 'linear-gradient(135deg, #4caf50 0%, #8bc34a 100%)',
-          textAlign: 'center',
-          boxShadow: '0 0 40px rgba(76, 175, 80, 0.5)',
-          animation: 'pulse 1.5s ease-in-out infinite',
-          '@keyframes pulse': { '0%, 100%': { transform: 'scale(1)' }, '50%': { transform: 'scale(1.02)' } },
-        }}>
-          <Typography variant="h3" fontWeight="bold" color="white" sx={{ textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>
-            🎉 {selectedStudent.name} 🎉
+      {/* Winner / transition banner */}
+      {renderWinnerBanner()}
+
+      {/* Phase label when showing members */}
+      {showingMembers && selectedTeam && (
+        <Box sx={{ mx: 2, mt: 0.5, flexShrink: 0, textAlign: 'center' }}>
+          <Typography variant="body1" fontWeight="bold" sx={{ color: selectedTeam.color, letterSpacing: 1 }}>
+            {selectedTeam.name.toUpperCase()}
           </Typography>
         </Box>
       )}
 
-      {/* Student Grid — fills remaining height, no scroll */}
+      {/* Main grid */}
       <Box sx={{ flex: 1, overflow: 'hidden', p: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <Box sx={{
-          flex: 1,
-          display: 'grid',
-          gridTemplateColumns: `repeat(${cols}, 1fr)`,
-          gridTemplateRows: `repeat(${rows}, 1fr)`,
-          gap: 0.5,
-        }}>
-          {students.map((student, idx) => {
-            const isHighlighted = highlightedIndex === idx && isSpinning;
-            const isSelected = selectedStudent?.id === student.id;
-
-            return (
-              <Paper
-                key={student.id}
-                elevation={isHighlighted || isSelected ? 6 : 1}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  overflow: 'hidden',
-                  minHeight: 0,
-                  p: 0.5,
-                  borderRadius: 1,
-                  transition: 'all 0.08s ease-in-out',
-                  transform: isHighlighted || isSelected ? 'scale(1.03)' : 'scale(1)',
-                  bgcolor: isSelected ? '#4caf50' : isHighlighted ? '#1976d2' : 'rgba(255,255,255,0.95)',
-                  color: isSelected || isHighlighted ? '#fff' : '#1a1a2e',
-                  border: isSelected ? '2px solid #81c784' : isHighlighted ? '2px solid #64b5f6' : '1px solid rgba(0,0,0,0.08)',
-                  boxShadow: isSelected ? '0 0 16px rgba(76,175,80,0.6)' : isHighlighted ? '0 0 12px rgba(25,118,210,0.5)' : undefined,
-                }}
-              >
-                <Typography
-                  fontWeight={isSelected ? 'bold' : 'medium'}
-                  sx={{
-                    fontSize: students.length > 60 ? '0.62rem' : students.length > 40 ? '0.72rem' : students.length > 25 ? '0.82rem' : '0.92rem',
-                    lineHeight: 1.15,
-                    textAlign: 'center',
-                    wordBreak: 'break-word',
-                    // Clamp to 2 lines max
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {getDisplayName(student.name)}
-                </Typography>
-              </Paper>
-            );
-          })}
-        </Box>
+        {renderGrid()}
       </Box>
 
       {/* Bottom Bar */}
-      <Box sx={{ px: 2, py: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 3, borderTop: '1px solid rgba(255,255,255,0.1)', bgcolor: 'rgba(0,0,0,0.2)', flexShrink: 0 }}>
-        <Typography variant="body2" color="rgba(255,255,255,0.7)">{students.length} students</Typography>
+      <Box sx={{
+        px: 2, py: 1,
+        display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 3,
+        borderTop: '1px solid rgba(255,255,255,0.1)',
+        bgcolor: 'rgba(0,0,0,0.2)',
+        flexShrink: 0,
+      }}>
+        <Typography variant="body2" color="rgba(255,255,255,0.7)">
+          {students.length} students
+        </Typography>
 
+        {/* Individual spin button */}
         <Button
           variant="contained"
           size="large"
           onClick={handleSpin}
-          disabled={isSpinning || students.length === 0}
+          disabled={isAnySpinning || students.length === 0}
           sx={{
-            px: 5, py: 1, fontSize: '1.1rem', fontWeight: 'bold', borderRadius: 2,
+            px: 4, py: 1, fontSize: '1rem', fontWeight: 'bold', borderRadius: 2,
             background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e53 100%)',
             boxShadow: '0 4px 20px rgba(255,107,107,0.4)',
             '&:hover': { background: 'linear-gradient(135deg, #ff8e53 0%, #ff6b6b 100%)', boxShadow: '0 6px 30px rgba(255,107,107,0.6)' },
@@ -283,8 +663,34 @@ export function PresentationView({ classId, className, students }: PresentationV
           }}
           startIcon={isSpinning ? <CircularProgress size={20} color="inherit" /> : <CasinoIcon />}
         >
-          {isSpinning ? 'Spinning...' : 'SPIN'}
+          {isSpinning ? 'Spinning…' : 'SPIN'}
         </Button>
+
+        {/* Team spin button — only shown when teams exist */}
+        {hasTeams && (
+          <Button
+            variant="contained"
+            size="large"
+            onClick={handleTeamSpin}
+            disabled={isAnySpinning || eligibleTeams.length === 0}
+            sx={{
+              px: 4, py: 1, fontSize: '1rem', fontWeight: 'bold', borderRadius: 2,
+              background: 'linear-gradient(135deg, #7c4dff 0%, #448aff 100%)',
+              boxShadow: '0 4px 20px rgba(124,77,255,0.4)',
+              '&:hover': { background: 'linear-gradient(135deg, #448aff 0%, #7c4dff 100%)', boxShadow: '0 6px 30px rgba(124,77,255,0.6)' },
+              '&:disabled': { background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' },
+            }}
+            startIcon={
+              (animationPhase === 'team' || animationPhase === 'team_pause' || animationPhase === 'student')
+                ? <CircularProgress size={20} color="inherit" />
+                : <GroupIcon />
+            }
+          >
+            {(animationPhase === 'team' || animationPhase === 'team_pause' || animationPhase === 'student')
+              ? 'Spinning…'
+              : 'TEAM SPIN'}
+          </Button>
+        )}
 
         <Typography variant="body2" color="rgba(255,255,255,0.7)">F11 fullscreen</Typography>
       </Box>

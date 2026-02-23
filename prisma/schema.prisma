@@ -39,34 +39,54 @@ model Class {
   user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   students   Student[]
   coldCalls  ColdCall[]
+  teams      Team[]
 
   @@index([userId])
   @@index([endDate])
 }
 
+model Team {
+  id        String     @id @default(cuid())
+  classId   String
+  name      String
+  color     String     @default("#1976d2")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  class     Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  students  Student[]
+  coldCalls ColdCall[]
+
+  @@index([classId])
+}
+
 model Student {
   id         String     @id @default(cuid())
   classId    String
+  teamId     String?
   name       String
   uni        String
   createdAt  DateTime   @default(now())
   class      Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  team       Team?      @relation(fields: [teamId], references: [id], onDelete: SetNull)
   coldCalls  ColdCall[]
 
   @@index([classId])
   @@index([uni])
+  @@index([teamId])
 }
 
 model ColdCall {
   id         String    @id @default(cuid())
   classId    String
   studentId  String
+  teamId     String?
   calledAt   DateTime  @default(now())
   score      Int?
   notes      String?
   createdAt  DateTime  @default(now())
   class      Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
   student    Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  team       Team?     @relation(fields: [teamId], references: [id], onDelete: SetNull)
 
   @@index([classId, calledAt])
   @@index([studentId])
