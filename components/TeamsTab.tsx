@@ -26,6 +26,14 @@ import {
   IconButton,
   Tooltip,
   Alert,
+  Select,
+  MenuItem,
+  FormControl,
+  ToggleButton,
+  ToggleButtonGroup,
+  CircularProgress,
+  Divider,
+  InputLabel,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -33,12 +41,16 @@ import {
   Delete as DeleteIcon,
   Group as GroupIcon,
   Person as PersonIcon,
+  ViewList as ViewListIcon,
+  ViewModule as ViewModuleIcon,
+  Shuffle as ShuffleIcon,
 } from '@mui/icons-material';
 import {
   createTeamAction,
   updateTeamAction,
   deleteTeamAction,
   assignStudentToTeamAction,
+  autoDistributeStudentsAction,
 } from '@/app/(app)/classes/[classId]/actions';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -64,15 +76,15 @@ interface TeamsTabProps {
 }
 
 const COLOR_PALETTE = [
-  '#1976d2', // blue
-  '#e91e63', // pink
-  '#9c27b0', // purple
-  '#ff9800', // orange
-  '#009688', // teal
-  '#795548', // brown
+  '#1976d2',
+  '#e91e63',
+  '#9c27b0',
+  '#ff9800',
+  '#009688',
+  '#795548',
 ];
 
-// ── Draggable student chip ─────────────────────────────────────────────────
+// ── Draggable student chip (Board view) ───────────────────────────────────
 
 function DraggableStudent({
   student,
@@ -115,7 +127,7 @@ function DraggableStudent({
   );
 }
 
-// ── Droppable zone ─────────────────────────────────────────────────────────
+// ── Droppable zone (Board view) ────────────────────────────────────────────
 
 function DroppableZone({
   id,
@@ -230,6 +242,84 @@ function TeamDialog({
   );
 }
 
+// ── List view row ─────────────────────────────────────────────────────────
+
+function StudentRow({
+  student,
+  teams,
+  onAssign,
+  saving,
+}: {
+  student: Student;
+  teams: Team[];
+  onAssign: (studentId: string, teamId: string | null) => void;
+  saving: boolean;
+}) {
+  const currentTeam = teams.find((t) => t.id === student.teamId);
+
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.5,
+        py: 0.75,
+        px: 1,
+        borderRadius: 1,
+        '&:hover': { bgcolor: 'action.hover' },
+      }}
+    >
+      <Box
+        sx={{
+          width: 8,
+          height: 8,
+          borderRadius: '50%',
+          bgcolor: currentTeam?.color ?? '#ccc',
+          flexShrink: 0,
+        }}
+      />
+      <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap>
+        {student.name}
+      </Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ width: 80, flexShrink: 0 }} noWrap>
+        {student.uni}
+      </Typography>
+      <FormControl size="small" sx={{ minWidth: 150, flexShrink: 0 }}>
+        <Select
+          value={student.teamId ?? ''}
+          onChange={(e) => onAssign(student.id, e.target.value || null)}
+          disabled={saving}
+          displayEmpty
+          renderValue={(val) => {
+            if (!val) return <Typography variant="body2" color="text.secondary">Unassigned</Typography>;
+            const t = teams.find((t) => t.id === val);
+            return (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: t?.color, flexShrink: 0 }} />
+                <Typography variant="body2">{t?.name}</Typography>
+              </Box>
+            );
+          }}
+          sx={{ fontSize: '0.8rem' }}
+        >
+          <MenuItem value="">
+            <Typography variant="body2" color="text.secondary">Unassigned</Typography>
+          </MenuItem>
+          <Divider />
+          {teams.map((t) => (
+            <MenuItem key={t.id} value={t.id}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: t.color }} />
+                <Typography variant="body2">{t.name}</Typography>
+              </Box>
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+    </Box>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function TeamsTab({ classId, students: initialStudents, teams: initialTeams }: TeamsTabProps) {
@@ -237,6 +327,10 @@ export function TeamsTab({ classId, students: initialStudents, teams: initialTea
   const [teams, setTeams] = useState<Team[]>(initialTeams);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [view, setView] = useState<'board' | 'list'>('list');
+  const [savingStudentId, setSavingStudentId] = useState<string | null>(null);
+  const [distributing, setDistributing] = useState(false);
+  const [distributeConfirmOpen, setDistributeConfirmOpen] = useState(false);
 
   // Dialogs
   const [createOpen, setCreateOpen] = useState(false);
@@ -245,10 +339,9 @@ export function TeamsTab({ classId, students: initialStudents, teams: initialTea
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  // Derived: students not in any team
   const unassigned = students.filter((s) => s.teamId === null);
+  const assigned = students.filter((s) => s.teamId !== null);
 
-  // Get students for a team from local state
   const teamStudents = useCallback(
     (teamId: string) => students.filter((s) => s.teamId === teamId),
     [students],
@@ -259,7 +352,46 @@ export function TeamsTab({ classId, students: initialStudents, teams: initialTea
     ? teams.find((t) => t.id === activeDragStudent.teamId)
     : null;
 
-  // ── Drag handlers ────────────────────────────────────────────────────────
+  // ── List view: instant assign via dropdown ───────────────────────────────
+
+  const handleListAssign = async (studentId: string, teamId: string | null) => {
+    const student = students.find((s) => s.id === studentId);
+    if (!student || student.teamId === teamId) return;
+
+    setSavingStudentId(studentId);
+    setStudents((prev) => prev.map((s) => (s.id === studentId ? { ...s, teamId } : s)));
+
+    const result = await assignStudentToTeamAction(studentId, teamId, classId);
+    setSavingStudentId(null);
+    if (result.error) {
+      setStudents((prev) => prev.map((s) => (s.id === studentId ? { ...s, teamId: student.teamId } : s)));
+      setError(result.error);
+    }
+  };
+
+  // ── Auto-distribute ──────────────────────────────────────────────────────
+
+  const handleAutoDistribute = async () => {
+    setDistributeConfirmOpen(false);
+    setDistributing(true);
+    setError('');
+
+    const result = await autoDistributeStudentsAction(classId);
+    setDistributing(false);
+
+    if (result.error) { setError(result.error); return; }
+
+    if (result.assignments) {
+      setStudents((prev) =>
+        prev.map((s) => {
+          const assignment = result.assignments!.find((a) => a.studentId === s.id);
+          return assignment ? { ...s, teamId: assignment.teamId } : s;
+        }),
+      );
+    }
+  };
+
+  // ── Board view: drag handlers ────────────────────────────────────────────
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveDragId(event.active.id as string);
@@ -271,44 +403,34 @@ export function TeamsTab({ classId, students: initialStudents, teams: initialTea
     if (!over) return;
 
     const studentId = active.id as string;
-    const targetZone = over.id as string; // either a teamId or 'unassigned'
+    const targetZone = over.id as string;
     const newTeamId = targetZone === 'unassigned' ? null : targetZone;
 
     const student = students.find((s) => s.id === studentId);
     if (!student || student.teamId === newTeamId) return;
 
-    // Optimistic update
-    setStudents((prev) =>
-      prev.map((s) => (s.id === studentId ? { ...s, teamId: newTeamId } : s)),
-    );
+    setStudents((prev) => prev.map((s) => (s.id === studentId ? { ...s, teamId: newTeamId } : s)));
 
     const result = await assignStudentToTeamAction(studentId, newTeamId, classId);
     if (result.error) {
-      // Rollback
-      setStudents((prev) =>
-        prev.map((s) => (s.id === studentId ? { ...s, teamId: student.teamId } : s)),
-      );
+      setStudents((prev) => prev.map((s) => (s.id === studentId ? { ...s, teamId: student.teamId } : s)));
       setError(result.error);
     }
   };
 
-  // ── Team CRUD handlers ───────────────────────────────────────────────────
+  // ── Team CRUD ────────────────────────────────────────────────────────────
 
   const handleCreateTeam = async (name: string, color: string) => {
     const result = await createTeamAction(classId, name, color);
     if (result.error) { setError(result.error); return; }
-    if (result.team) {
-      setTeams((prev) => [...prev, { ...result.team!, students: [] }]);
-    }
+    if (result.team) setTeams((prev) => [...prev, { ...result.team!, students: [] }]);
   };
 
   const handleUpdateTeam = async (name: string, color: string) => {
     if (!editTarget) return;
     const result = await updateTeamAction(editTarget.id, classId, name, color);
     if (result.error) { setError(result.error); return; }
-    setTeams((prev) =>
-      prev.map((t) => (t.id === editTarget.id ? { ...t, name, color } : t)),
-    );
+    setTeams((prev) => prev.map((t) => (t.id === editTarget.id ? { ...t, name, color } : t)));
     setEditTarget(null);
   };
 
@@ -316,13 +438,12 @@ export function TeamsTab({ classId, students: initialStudents, teams: initialTea
     if (!deleteTarget) return;
     const result = await deleteTeamAction(deleteTarget.id, classId);
     if (result.error) { setError(result.error); setDeleteTarget(null); return; }
-    // Move team's students back to unassigned in local state
-    setStudents((prev) =>
-      prev.map((s) => (s.teamId === deleteTarget.id ? { ...s, teamId: null } : s)),
-    );
+    setStudents((prev) => prev.map((s) => (s.teamId === deleteTarget.id ? { ...s, teamId: null } : s)));
     setTeams((prev) => prev.filter((t) => t.id !== deleteTarget.id));
     setDeleteTarget(null);
   };
+
+  // ── Render ───────────────────────────────────────────────────────────────
 
   return (
     <Box>
@@ -332,10 +453,43 @@ export function TeamsTab({ classId, students: initialStudents, teams: initialTea
         </Alert>
       )}
 
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+      {/* Toolbar */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
+        <ToggleButtonGroup
+          value={view}
+          exclusive
+          onChange={(_, v) => v && setView(v)}
+          size="small"
+        >
+          <ToggleButton value="list">
+            <Tooltip title="List view — fastest for bulk assignment">
+              <ViewListIcon fontSize="small" />
+            </Tooltip>
+          </ToggleButton>
+          <ToggleButton value="board">
+            <Tooltip title="Board view — drag and drop">
+              <ViewModuleIcon fontSize="small" />
+            </Tooltip>
+          </ToggleButton>
+        </ToggleButtonGroup>
+
+        <Button
+          variant="outlined"
+          startIcon={distributing ? <CircularProgress size={16} /> : <ShuffleIcon />}
+          size="small"
+          onClick={() => setDistributeConfirmOpen(true)}
+          disabled={distributing || teams.length === 0 || unassigned.length === 0}
+          color="secondary"
+        >
+          Auto-distribute ({unassigned.length} unassigned)
+        </Button>
+
+        <Box sx={{ flex: 1 }} />
+
         <Typography variant="body2" color="text.secondary">
-          Drag students into teams. Drop back on <strong>Unassigned</strong> to remove from a team.
+          {assigned.length}/{students.length} assigned
         </Typography>
+
         <Button
           variant="contained"
           startIcon={<AddIcon />}
@@ -346,101 +500,180 @@ export function TeamsTab({ classId, students: initialStudents, teams: initialTea
         </Button>
       </Box>
 
-      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' }, gap: 2 }}>
-
-          {/* Unassigned students */}
-          <Paper elevation={1} sx={{ p: 1.5, border: '1px solid', borderColor: 'divider' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <PersonIcon fontSize="small" color="action" />
-              <Typography variant="subtitle2" fontWeight="bold">
-                Unassigned
-              </Typography>
-              <Chip label={unassigned.length} size="small" variant="outlined" sx={{ ml: 'auto' }} />
-            </Box>
-            <DroppableZone id="unassigned" isEmpty={unassigned.length === 0} label="Drop here to unassign">
-              {unassigned.map((s) => (
-                <DraggableStudent
-                  key={s.id}
-                  student={s}
-                  isDragging={activeDragId === s.id}
-                />
-              ))}
-            </DroppableZone>
-          </Paper>
-
-          {/* Team cards */}
-          {teams.map((team) => {
-            const members = teamStudents(team.id);
-            return (
-              <Paper
-                key={team.id}
-                elevation={1}
-                sx={{
-                  p: 1.5,
-                  border: `1px solid ${team.color}44`,
-                  borderTop: `3px solid ${team.color}`,
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
-                  <GroupIcon fontSize="small" sx={{ color: team.color }} />
-                  <Typography variant="subtitle2" fontWeight="bold" sx={{ color: team.color, flex: 1 }}>
-                    {team.name}
-                  </Typography>
-                  <Chip label={members.length} size="small" sx={{ bgcolor: `${team.color}22`, color: team.color }} />
-                  <Tooltip title="Rename">
-                    <IconButton size="small" onClick={() => setEditTarget(team)}>
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Delete team">
-                    <IconButton size="small" color="error" onClick={() => setDeleteTarget(team)}>
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-                <DroppableZone id={team.id} color={team.color} isEmpty={members.length === 0}>
-                  {members.map((s) => (
-                    <DraggableStudent
-                      key={s.id}
-                      student={s}
-                      teamColor={team.color}
-                      isDragging={activeDragId === s.id}
+      {/* ── LIST VIEW ──────────────────────────────────────────────────── */}
+      {view === 'list' && (
+        <Box>
+          {/* Team summary chips */}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 2 }}>
+            {teams.map((t) => {
+              const count = students.filter((s) => s.teamId === t.id).length;
+              return (
+                <Chip
+                  key={t.id}
+                  label={`${t.name} (${count})`}
+                  size="small"
+                  icon={
+                    <Box
+                      component="span"
+                      sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: t.color, ml: '6px !important' }}
                     />
+                  }
+                  sx={{ bgcolor: `${t.color}18`, border: `1px solid ${t.color}55`, color: t.color }}
+                  onDelete={() => setEditTarget(t)}
+                  deleteIcon={
+                    <Tooltip title="Rename/recolor">
+                      <EditIcon fontSize="small" />
+                    </Tooltip>
+                  }
+                />
+              );
+            })}
+            {teams.length === 0 && (
+              <Typography variant="body2" color="text.secondary">
+                No teams yet — create one to start assigning.
+              </Typography>
+            )}
+          </Box>
+
+          {/* Student rows */}
+          <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
+            {/* Header */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 1, py: 0.75, bgcolor: 'action.hover', borderBottom: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ width: 8, flexShrink: 0 }} />
+              <Typography variant="caption" fontWeight="bold" sx={{ flex: 1 }}>Student</Typography>
+              <Typography variant="caption" fontWeight="bold" sx={{ width: 80, flexShrink: 0 }}>UNI</Typography>
+              <Typography variant="caption" fontWeight="bold" sx={{ width: 150, flexShrink: 0 }}>Team</Typography>
+            </Box>
+
+            {/* Unassigned first */}
+            {unassigned.length > 0 && (
+              <Box>
+                <Box sx={{ px: 1, py: 0.5, bgcolor: 'warning.50', borderBottom: '1px solid', borderColor: 'divider' }}>
+                  <Typography variant="caption" color="warning.dark" fontWeight="bold">
+                    UNASSIGNED ({unassigned.length})
+                  </Typography>
+                </Box>
+                {unassigned.map((s) => (
+                  <Box key={s.id} sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
+                    <StudentRow
+                      student={s}
+                      teams={teams}
+                      onAssign={handleListAssign}
+                      saving={savingStudentId === s.id}
+                    />
+                  </Box>
+                ))}
+              </Box>
+            )}
+
+            {/* Grouped by team */}
+            {teams.map((team) => {
+              const members = students.filter((s) => s.teamId === team.id);
+              if (members.length === 0) return null;
+              return (
+                <Box key={team.id}>
+                  <Box sx={{ px: 1, py: 0.5, borderBottom: '1px solid', borderColor: 'divider', borderLeft: `3px solid ${team.color}` }}>
+                    <Typography variant="caption" fontWeight="bold" sx={{ color: team.color }}>
+                      {team.name.toUpperCase()} ({members.length})
+                    </Typography>
+                  </Box>
+                  {members.map((s, idx) => (
+                    <Box key={s.id} sx={{ borderBottom: idx < members.length - 1 ? '1px solid' : 'none', borderColor: 'divider' }}>
+                      <StudentRow
+                        student={s}
+                        teams={teams}
+                        onAssign={handleListAssign}
+                        saving={savingStudentId === s.id}
+                      />
+                    </Box>
+                  ))}
+                </Box>
+              );
+            })}
+          </Paper>
+        </Box>
+      )}
+
+      {/* ── BOARD VIEW (drag & drop) ───────────────────────────────────── */}
+      {view === 'board' && (
+        <Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            Drag students into teams. Drop back on <strong>Unassigned</strong> to remove from a team.
+          </Typography>
+
+          <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' }, gap: 2 }}>
+
+              {/* Unassigned pool */}
+              <Paper elevation={1} sx={{ p: 1.5, border: '1px solid', borderColor: 'divider' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <PersonIcon fontSize="small" color="action" />
+                  <Typography variant="subtitle2" fontWeight="bold">Unassigned</Typography>
+                  <Chip label={unassigned.length} size="small" variant="outlined" sx={{ ml: 'auto' }} />
+                </Box>
+                <DroppableZone id="unassigned" isEmpty={unassigned.length === 0} label="Drop here to unassign">
+                  {unassigned.map((s) => (
+                    <DraggableStudent key={s.id} student={s} isDragging={activeDragId === s.id} />
                   ))}
                 </DroppableZone>
               </Paper>
-            );
-          })}
-        </Box>
 
-        {/* Drag overlay — shows the chip floating under cursor */}
-        <DragOverlay>
-          {activeDragStudent ? (
-            <Chip
-              label={activeDragStudent.name}
-              icon={<PersonIcon />}
-              size="small"
-              sx={{
-                cursor: 'grabbing',
-                bgcolor: activeDragTeam ? `${activeDragTeam.color}22` : 'action.hover',
-                border: `1px solid ${activeDragTeam?.color || '#ccc'}`,
-                color: activeDragTeam ? activeDragTeam.color : 'text.primary',
-                fontWeight: 500,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                '& .MuiChip-icon': { color: activeDragTeam?.color || 'text.secondary' },
-              }}
-            />
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+              {/* Team cards */}
+              {teams.map((team) => {
+                const members = teamStudents(team.id);
+                return (
+                  <Paper key={team.id} elevation={1} sx={{ p: 1.5, border: `1px solid ${team.color}44`, borderTop: `3px solid ${team.color}` }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+                      <GroupIcon fontSize="small" sx={{ color: team.color }} />
+                      <Typography variant="subtitle2" fontWeight="bold" sx={{ color: team.color, flex: 1 }}>
+                        {team.name}
+                      </Typography>
+                      <Chip label={members.length} size="small" sx={{ bgcolor: `${team.color}22`, color: team.color }} />
+                      <Tooltip title="Rename">
+                        <IconButton size="small" onClick={() => setEditTarget(team)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete team">
+                        <IconButton size="small" color="error" onClick={() => setDeleteTarget(team)}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                    <DroppableZone id={team.id} color={team.color} isEmpty={members.length === 0}>
+                      {members.map((s) => (
+                        <DraggableStudent key={s.id} student={s} teamColor={team.color} isDragging={activeDragId === s.id} />
+                      ))}
+                    </DroppableZone>
+                  </Paper>
+                );
+              })}
+            </Box>
+
+            <DragOverlay>
+              {activeDragStudent ? (
+                <Chip
+                  label={activeDragStudent.name}
+                  icon={<PersonIcon />}
+                  size="small"
+                  sx={{
+                    cursor: 'grabbing',
+                    bgcolor: activeDragTeam ? `${activeDragTeam.color}22` : 'action.hover',
+                    border: `1px solid ${activeDragTeam?.color || '#ccc'}`,
+                    color: activeDragTeam ? activeDragTeam.color : 'text.primary',
+                    fontWeight: 500,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                    '& .MuiChip-icon': { color: activeDragTeam?.color || 'text.secondary' },
+                  }}
+                />
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        </Box>
+      )}
 
       {/* Create team dialog */}
-      <TeamDialog
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onSave={handleCreateTeam}
-      />
+      <TeamDialog open={createOpen} onClose={() => setCreateOpen(false)} onSave={handleCreateTeam} />
 
       {/* Edit team dialog */}
       <TeamDialog
@@ -450,19 +683,33 @@ export function TeamsTab({ classId, students: initialStudents, teams: initialTea
         onSave={handleUpdateTeam}
       />
 
-      {/* Delete confirm dialog */}
+      {/* Delete confirm */}
       <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} maxWidth="xs">
         <DialogTitle>Delete team?</DialogTitle>
         <DialogContent>
           <Typography>
-            Delete <strong>{deleteTarget?.name}</strong>? All students will be moved back to
-            Unassigned.
+            Delete <strong>{deleteTarget?.name}</strong>? All students will be moved back to Unassigned.
           </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteTarget(null)}>Cancel</Button>
-          <Button variant="contained" color="error" onClick={handleDeleteTeam}>
-            Delete
+          <Button variant="contained" color="error" onClick={handleDeleteTeam}>Delete</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Auto-distribute confirm */}
+      <Dialog open={distributeConfirmOpen} onClose={() => setDistributeConfirmOpen(false)} maxWidth="xs">
+        <DialogTitle>Auto-distribute students?</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Randomly assign all <strong>{unassigned.length} unassigned students</strong> evenly
+            across <strong>{teams.length} teams</strong>. Already-assigned students are not moved.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDistributeConfirmOpen(false)}>Cancel</Button>
+          <Button variant="contained" color="secondary" startIcon={<ShuffleIcon />} onClick={handleAutoDistribute}>
+            Distribute
           </Button>
         </DialogActions>
       </Dialog>

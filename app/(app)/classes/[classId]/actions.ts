@@ -95,6 +95,53 @@ export async function assignStudentToTeamAction(
   }
 }
 
+// ── Bulk assignment ────────────────────────────────────────────────────────
+
+export async function autoDistributeStudentsAction(classId: string) {
+  const session = await requireAuth();
+
+  try {
+    const classData = await prisma.class.findUnique({
+      where: { id: classId, userId: session.userId },
+      include: {
+        students: { where: { teamId: null } },
+        teams: true,
+      },
+    });
+    if (!classData) return { error: 'Class not found' };
+
+    const unassigned = classData.students;
+    const teams = classData.teams;
+
+    if (teams.length === 0) return { error: 'No teams exist. Create teams first.' };
+    if (unassigned.length === 0) return { error: 'All students are already assigned.' };
+
+    // Shuffle students randomly (Fisher-Yates)
+    const shuffled = [...unassigned];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    // Assign round-robin across teams
+    const updates = shuffled.map((student, i) => ({
+      studentId: student.id,
+      teamId: teams[i % teams.length].id,
+    }));
+
+    await prisma.$transaction(
+      updates.map(({ studentId, teamId }) =>
+        prisma.student.update({ where: { id: studentId }, data: { teamId } }),
+      ),
+    );
+
+    return { assignments: updates };
+  } catch (error) {
+    console.error('Error auto-distributing students:', error);
+    return { error: 'Failed to distribute students.' };
+  }
+}
+
 // ── Team cold call ─────────────────────────────────────────────────────────
 
 export async function spinTeamColdCallAction(classId: string) {
