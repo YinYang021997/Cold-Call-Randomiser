@@ -358,10 +358,11 @@ export function PresentationView({ classId, className, students, teams }: Presen
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  justifyContent: 'center',
+                  justifyContent: 'flex-start',
                   overflow: 'hidden',
                   minHeight: 0,
                   p: 1,
+                  pt: 1.25,
                   borderRadius: 2,
                   transition: 'all 0.09s ease-in-out',
                   transform: isHighlighted || isSelected ? 'scale(1.06)' : 'scale(1)',
@@ -382,28 +383,36 @@ export function PresentationView({ classId, className, students, teams }: Presen
                       : undefined,
                 }}
               >
-                <GroupIcon sx={{
-                  fontSize: '2rem',
-                  mb: 0.5,
-                  color: isSelected || isHighlighted ? '#fff' : team.color,
-                }} />
                 <Typography
                   fontWeight="bold"
                   sx={{
                     color: isSelected || isHighlighted ? '#fff' : team.color,
-                    fontSize: eligibleTeams.length > 6 ? '0.85rem' : '1rem',
+                    fontSize: eligibleTeams.length > 6 ? '0.8rem' : '0.95rem',
                     textAlign: 'center',
                     lineHeight: 1.2,
+                    mb: 0.5,
                   }}
                 >
                   {team.name}
                 </Typography>
-                <Typography
-                  variant="caption"
-                  sx={{ color: isSelected || isHighlighted ? 'rgba(255,255,255,0.8)' : `${team.color}99` }}
-                >
-                  {team.students.length} {team.students.length === 1 ? 'student' : 'students'}
-                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 0.4 }}>
+                  {team.students.map((s) => (
+                    <Typography
+                      key={s.id}
+                      sx={{
+                        fontSize: eligibleTeams.length > 8 ? '0.6rem' : '0.68rem',
+                        lineHeight: 1.3,
+                        color: isSelected || isHighlighted ? 'rgba(255,255,255,0.9)' : `${team.color}cc`,
+                        bgcolor: isSelected || isHighlighted ? 'rgba(255,255,255,0.15)' : `${team.color}18`,
+                        borderRadius: '3px',
+                        px: 0.5,
+                        py: 0.15,
+                      }}
+                    >
+                      {s.name.split(' ')[0]}
+                    </Typography>
+                  ))}
+                </Box>
               </Paper>
             );
           })}
