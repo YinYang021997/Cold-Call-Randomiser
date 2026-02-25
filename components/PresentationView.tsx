@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Box,
@@ -61,6 +61,20 @@ export function PresentationView({ classId, className, students, teams }: Presen
   const [highlightedMemberIndex, setHighlightedMemberIndex] = useState<number | null>(null);
   const [selectedMember, setSelectedMember] = useState<Student | null>(null);
 
+  // ── Session state ──────────────────────────────────────────────────────────
+  const sessionKey = `ccr-session-${classId}`;
+  const [sessionActive, setSessionActive] = useState(false);
+  const [calledTeamIds, setCalledTeamIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(sessionKey);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      setSessionActive(parsed.active ?? false);
+      setCalledTeamIds(parsed.calledTeamIds ?? []);
+    }
+  }, [sessionKey]);
+
   const [error, setError] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const router = useRouter();
@@ -69,7 +83,13 @@ export function PresentationView({ classId, className, students, teams }: Presen
 
   // Teams that have at least one member
   const eligibleTeams = teams.filter((t) => t.students.length > 0);
+  // In session mode, exclude already-called teams
+  const spinEligibleTeams = useMemo(
+    () => sessionActive ? eligibleTeams.filter(t => !calledTeamIds.includes(t.id)) : eligibleTeams,
+    [sessionActive, calledTeamIds, eligibleTeams],
+  );
   const hasTeams = eligibleTeams.length > 0;
+  const allTeamsCalledInSession = sessionActive && spinEligibleTeams.length === 0 && eligibleTeams.length > 0;
 
   const isTeamMode = animationPhase !== 'idle' && animationPhase !== 'done'
     ? true
@@ -104,7 +124,7 @@ export function PresentationView({ classId, className, students, teams }: Presen
   }, [students.length])();
 
   // Grid columns for team cards
-  const teamCols = Math.min(eligibleTeams.length, 5);
+  const teamCols = Math.min(spinEligibleTeams.length, 5);
 
   // Grid columns for team members
   const memberCols = useCallback(() => {
@@ -206,7 +226,7 @@ export function PresentationView({ classId, className, students, teams }: Presen
   // ── Team spin ────────────────────────────────────────────────────────────
 
   const handleTeamSpin = async () => {
-    if (isAnySpinning || eligibleTeams.length === 0) return;
+    if (isAnySpinning || spinEligibleTeams.length === 0) return;
     setError('');
     setSelectedStudent(null);
     setSelectedTeam(null);
@@ -216,7 +236,7 @@ export function PresentationView({ classId, className, students, teams }: Presen
     setHighlightedMemberIndex(null);
 
     // Kick off server action first (runs in parallel with animation)
-    const resultPromise = spinTeamColdCallAction(classId);
+    const resultPromise = spinTeamColdCallAction(classId, sessionActive ? calledTeamIds : []);
 
     // Phase 1: animate teams
     setAnimationPhase('team');
@@ -226,7 +246,7 @@ export function PresentationView({ classId, className, students, teams }: Presen
     let teamDelay = 60;
 
     const animateTeamHop = () => {
-      setHighlightedTeamIndex(Math.floor(Math.random() * eligibleTeams.length));
+      setHighlightedTeamIndex(Math.floor(Math.random() * spinEligibleTeams.length));
       teamHopCount++;
       if (teamHopCount > totalTeamHops * 0.6) teamDelay += 25;
       if (teamHopCount > totalTeamHops * 0.8) teamDelay += 50;
@@ -245,8 +265,8 @@ export function PresentationView({ classId, className, students, teams }: Presen
         return;
       }
 
-      const winningTeamIndex = eligibleTeams.findIndex(t => t.id === result.team!.id);
-      const winningTeam = eligibleTeams[winningTeamIndex];
+      const winningTeamIndex = spinEligibleTeams.findIndex(t => t.id === result.team!.id);
+      const winningTeam = spinEligibleTeams[winningTeamIndex];
 
       // Wait for team animation to finish, then do final hops
       setTimeout(() => {
@@ -306,6 +326,12 @@ export function PresentationView({ classId, className, students, teams }: Presen
                     setSelectedMember(result.student!);
                     setAnimationPhase('done');
                     fireConfetti();
+                    // Update session: mark this team as called
+                    if (sessionActive) {
+                      const updated = [...calledTeamIds, result.team!.id];
+                      setCalledTeamIds(updated);
+                      localStorage.setItem(sessionKey, JSON.stringify({ active: true, calledTeamIds: updated }));
+                    }
                     setTimeout(() => router.refresh(), 2000);
                   }
                 };
@@ -338,7 +364,7 @@ export function PresentationView({ classId, className, students, teams }: Presen
   const renderGrid = () => {
     // Team cold call — phase 1: show team cards
     if (showingTeams) {
-      const teamRows = Math.ceil(eligibleTeams.length / teamCols);
+      const teamRows = Math.ceil(spinEligibleTeams.length / teamCols);
       return (
         <Box sx={{
           flex: 1,
@@ -347,7 +373,7 @@ export function PresentationView({ classId, className, students, teams }: Presen
           gridTemplateRows: `repeat(${teamRows}, 1fr)`,
           gap: 1,
         }}>
-          {eligibleTeams.map((team, idx) => {
+          {spinEligibleTeams.map((team, idx) => {
             const isHighlighted = highlightedTeamIndex === idx;
             const isSelected = selectedTeam?.id === team.id && animationPhase === 'team_pause';
             return (
@@ -681,7 +707,7 @@ export function PresentationView({ classId, className, students, teams }: Presen
             variant="contained"
             size="large"
             onClick={handleTeamSpin}
-            disabled={isAnySpinning || eligibleTeams.length === 0}
+            disabled={isAnySpinning || allTeamsCalledInSession}
             sx={{
               px: 4, py: 1, fontSize: '1rem', fontWeight: 'bold', borderRadius: 2,
               background: 'linear-gradient(135deg, #7c4dff 0%, #448aff 100%)',
@@ -697,8 +723,16 @@ export function PresentationView({ classId, className, students, teams }: Presen
           >
             {(animationPhase === 'team' || animationPhase === 'team_pause' || animationPhase === 'student')
               ? 'Spinning…'
-              : 'TEAM SPIN'}
+              : allTeamsCalledInSession
+                ? 'All Teams Called'
+                : 'TEAM SPIN'}
           </Button>
+        )}
+
+        {sessionActive && hasTeams && (
+          <Typography variant="body2" sx={{ color: allTeamsCalledInSession ? '#ff8a65' : '#81c784', fontWeight: 'bold' }}>
+            Session: {calledTeamIds.length}/{eligibleTeams.length} teams
+          </Typography>
         )}
 
         <Typography variant="body2" color="rgba(255,255,255,0.7)">F11 fullscreen</Typography>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Box,
@@ -25,6 +25,8 @@ import {
   Analytics as AnalyticsIcon,
   Slideshow as SlideshowIcon,
   Group as GroupIcon,
+  PlayCircle as PlayCircleIcon,
+  StopCircle as StopCircleIcon,
 } from '@mui/icons-material';
 import { SlotMachine } from './SlotMachine';
 import { HistoryTab } from './HistoryTab';
@@ -74,6 +76,32 @@ export function ClassDetail({ classData }: ClassDetailProps) {
   const [navigating, setNavigating] = useState(false);
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
   const router = useRouter();
+
+  const sessionKey = `ccr-session-${classData.id}`;
+  const [sessionActive, setSessionActive] = useState(false);
+  const [calledTeamCount, setCalledTeamCount] = useState(0);
+  const eligibleTeamCount = classData.teams.filter(t => t.students.length > 0).length;
+
+  useEffect(() => {
+    const stored = localStorage.getItem(sessionKey);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      setSessionActive(parsed.active ?? false);
+      setCalledTeamCount((parsed.calledTeamIds ?? []).length);
+    }
+  }, [sessionKey]);
+
+  const handleStartSession = () => {
+    localStorage.setItem(sessionKey, JSON.stringify({ active: true, calledTeamIds: [] }));
+    setSessionActive(true);
+    setCalledTeamCount(0);
+  };
+
+  const handleEndSession = () => {
+    localStorage.removeItem(sessionKey);
+    setSessionActive(false);
+    setCalledTeamCount(0);
+  };
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     if (newValue === 3) {
@@ -151,6 +179,29 @@ export function ClassDetail({ classData }: ClassDetailProps) {
                 >
                   Present
                 </Button>
+                {eligibleTeamCount > 0 && (
+                  sessionActive ? (
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      startIcon={<StopCircleIcon />}
+                      onClick={handleEndSession}
+                      disabled={navigating}
+                    >
+                      End Session ({calledTeamCount}/{eligibleTeamCount})
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outlined"
+                      color="primary"
+                      startIcon={<PlayCircleIcon />}
+                      onClick={handleStartSession}
+                      disabled={navigating}
+                    >
+                      Start Session
+                    </Button>
+                  )
+                )}
               </Box>
             </Box>
 

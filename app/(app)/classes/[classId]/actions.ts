@@ -144,7 +144,7 @@ export async function autoDistributeStudentsAction(classId: string) {
 
 // ── Team cold call ─────────────────────────────────────────────────────────
 
-export async function spinTeamColdCallAction(classId: string) {
+export async function spinTeamColdCallAction(classId: string, excludeTeamIds: string[] = []) {
   const session = await requireAuth();
 
   try {
@@ -153,9 +153,13 @@ export async function spinTeamColdCallAction(classId: string) {
     });
     if (!classData) return { error: 'Class not found' };
 
-    // Only consider teams that have at least one student
+    // Only consider teams that have at least one student, excluding already-called teams in session
     const teams = await prisma.team.findMany({
-      where: { classId, students: { some: {} } },
+      where: {
+        classId,
+        students: { some: {} },
+        ...(excludeTeamIds.length > 0 ? { id: { notIn: excludeTeamIds } } : {}),
+      },
       include: { students: true },
     });
 
