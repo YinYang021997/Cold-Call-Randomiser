@@ -1,6 +1,6 @@
 # Cold Call Randomizer
 
-A web application for professors to manage classes, randomly select students for cold calling with an interactive grid-based animation, track call history with scoring, and view student performance statistics.
+A web application for professors to manage classes, randomly select students for cold calling with an interactive grid-based animation, track call history with scoring, view student performance statistics, and run team-based cold calls in a full-screen presentation mode.
 
 ## Features
 
@@ -9,11 +9,14 @@ A web application for professors to manage classes, randomly select students for
 - **Class Management**: Create, edit, and manage multiple classes with student rosters
 - **CSV Import**: Bulk upload students via CSV files
 - **Add Students Anytime**: Add students to existing classes via CSV or manual entry
-- **Grid-Based Random Picker**: Students displayed in a grid with cell-hopping animation that randomly highlights names before selection
+- **Grid-Based Random Picker**: Students displayed in a grid with cell-hopping animation that randomly highlights names before landing on the selection
 - **Confetti Celebration**: Celebratory confetti animation when a student is selected
 - **Call History**: Track all cold calls with timestamps
 - **Student Scoring**: Rate student performance from -2 to +2 with instant local updates and auto-save
 - **Statistics Dashboard**: View cumulative scores, average scores, and call frequency per student
+- **Team Management**: Create colour-coded teams, assign students via drag-and-drop or list view, and auto-distribute students evenly
+- **Full-Screen Presentation Mode**: Distraction-free presenter view with animated team and individual cold-call spinners
+- **Session Mode**: Start a session to ensure every team is cold-called exactly once before any team is repeated
 - **Material Design UI**: Clean, professional interface built with Material UI (MUI)
 
 ## Tech Stack
@@ -26,6 +29,7 @@ A web application for professors to manage classes, randomly select students for
 - **Authentication**: Custom JWT-based sessions with bcrypt
 - **Email**: Nodemailer (SMTP)
 - **Animations**: canvas-confetti
+- **Drag & Drop**: @dnd-kit
 
 ## Prerequisites
 
@@ -162,24 +166,55 @@ Jane Smith,js5678
 Bob Johnson,bj9012
 ```
 
-### Using the Cold Call Feature
+### Using the Cold Call Feature (Tab View)
 
 1. Click on a class from the home page
 2. Go to the "Cold Call" tab
 3. All students are displayed in a compact grid
 4. Click "Spin & Pick" to randomly select a student
-5. The grid will animate with cells randomly highlighting (cell-hopping animation)
+5. The grid animates with cells randomly highlighting
 6. The animation slows down and lands on the selected student
-7. Confetti celebration appears when a student is selected
-8. The selected student's cell turns green with a banner showing their name
-9. The selection is automatically saved to the history
+7. Confetti celebration appears and the selection is saved to history
+
+### Using Teams
+
+1. Navigate to the **Teams** tab on the class detail page
+2. Click "Add Team" to create a colour-coded team
+3. Assign students to teams via:
+   - **List View** (default): Use the dropdown next to each student
+   - **Board View**: Drag and drop student cards between team columns
+4. Use "Auto-Distribute" to randomly spread unassigned students evenly across teams
+
+### Presentation Mode
+
+Click **Present** on the class detail page to enter full-screen presentation mode. Two spin modes are available:
+
+- **SPIN** — Picks a random individual student from the whole class
+- **TEAM SPIN** — First picks a random team (with a team-card animation), then picks a random member from that team
+
+After a team spin, the display stays on the selected team's member grid with the winner highlighted — it does not return to the full student list until the next spin begins.
+
+Press **F11** or use the fullscreen icon to toggle native fullscreen.
+
+### Session Mode
+
+Session mode ensures every team gets exactly one cold call before any team is repeated within a class session.
+
+1. On the class detail page, click **Start Session** (only visible when teams with students exist)
+2. The button changes to **End Session (X/Y)** showing how many teams have been called vs total
+3. Open Presentation Mode and use **TEAM SPIN** — already-called teams are automatically excluded from the spin
+4. In presentation mode a **Session: X/Y teams** counter is shown in the bottom bar
+5. Once all teams have been called, the TEAM SPIN button shows **All Teams Called** and is disabled
+6. Click **End Session** on the class detail page to reset and allow all teams to be picked again
+
+> Session state is stored in the browser (`localStorage`) and persists across navigation within the same browser session.
 
 ### Scoring Students
 
 1. Navigate to the "History" tab
 2. Each cold call has score buttons: -2, -1, 0, +1, +2
 3. Click a score to assign it to that cold call
-4. Scores update instantly in the UI (local state)
+4. Scores update instantly in the UI
 5. Changes are automatically saved to the server after 2 seconds of inactivity
 6. Changes also save when switching browser tabs or leaving the page
 
@@ -198,8 +233,6 @@ Bob Johnson,bj9012
 
 ### Development Mode (No SMTP Configured)
 
-When SMTP is not configured:
-
 1. User clicks "Forgot your password?" on login page
 2. User enters their email address
 3. App generates a reset token and prints the reset URL to the **server console**
@@ -207,8 +240,6 @@ When SMTP is not configured:
 5. Enter new password
 
 ### Production Mode (SMTP Configured)
-
-When SMTP is configured:
 
 1. User clicks "Forgot your password?"
 2. User enters their email address
@@ -224,11 +255,9 @@ When SMTP is configured:
 
 ## Switching from SQLite to PostgreSQL
 
-For production deployment, you should switch from SQLite to PostgreSQL:
+For production deployment, switch from SQLite to PostgreSQL:
 
 ### 1. Update `prisma/schema.prisma`
-
-Change the datasource:
 
 ```prisma
 datasource db {
@@ -252,8 +281,6 @@ npm run prisma:seed
 
 ### 4. Deploy
 
-Build and deploy your application:
-
 ```bash
 npm run build
 npm start
@@ -264,43 +291,129 @@ npm start
 ```
 cold-call-randomizer/
 ├── app/
-│   ├── (auth)/              # Authentication routes
+│   ├── (auth)/                  # Unauthenticated routes
 │   │   ├── login/
 │   │   ├── forgot-password/
 │   │   └── reset-password/
-│   ├── (app)/               # Protected routes
-│   │   ├── page.tsx         # Home (classes list)
+│   ├── (app)/                   # Protected routes (require login)
+│   │   ├── page.tsx             # Home — list of classes
 │   │   └── classes/
-│   │       ├── new/         # Create class
-│   │       └── [classId]/   # Class detail
-│   │           ├── page.tsx # Cold call & history
-│   │           ├── edit/    # Edit class
-│   │           ├── add-students/ # Add students
-│   │           └── stats/   # Statistics
+│   │       ├── new/             # Create class
+│   │       └── [classId]/
+│   │           ├── page.tsx     # Class detail (tabs)
+│   │           ├── actions.ts   # Server actions (spins, teams, scoring)
+│   │           ├── edit/        # Edit class metadata
+│   │           ├── add-students/
+│   │           ├── present/     # Full-screen presentation route
+│   │           └── stats/       # Per-student statistics
 │   ├── layout.tsx
 │   └── globals.css
-├── components/              # React components
-│   ├── ClassDetail.tsx     # Class detail with tabs
-│   ├── SlotMachine.tsx     # Grid-based random picker
-│   ├── HistoryTab.tsx      # Cold call history with scoring
-│   ├── StatsPage.tsx       # Statistics display
-│   ├── HomePage.tsx        # Classes list
-│   ├── ThemeRegistry.tsx   # MUI theme provider
+├── components/                  # Client components
+│   ├── ClassDetail.tsx          # Class detail page with tabs + session controls
+│   ├── PresentationView.tsx     # Full-screen animated spinner (individual + team)
+│   ├── SlotMachine.tsx          # Tab-embedded individual cold-call picker
+│   ├── TeamsTab.tsx             # Team CRUD, drag-and-drop, auto-distribute
+│   ├── HistoryTab.tsx           # Cold call history with inline scoring
+│   ├── StatsPage.tsx            # Statistics table
+│   ├── HomePage.tsx             # Classes list
+│   ├── ThemeRegistry.tsx        # MUI theme provider
 │   └── LogoutButton.tsx
-├── lib/                     # Utilities
-│   ├── auth.ts             # Authentication logic
-│   ├── db.ts               # Prisma client
-│   ├── email.ts            # Email sending
-│   ├── theme.ts            # MUI theme configuration
-│   └── validators.ts       # Zod schemas
+├── lib/
+│   ├── auth.ts                  # JWT session helpers
+│   ├── db.ts                    # Prisma client singleton
+│   ├── email.ts                 # Nodemailer email sending
+│   ├── theme.ts                 # MUI theme configuration
+│   └── validators.ts            # Zod input schemas
 ├── prisma/
-│   ├── schema.prisma       # Database schema
-│   └── seed.ts             # Seed script
-├── middleware.ts           # Route protection
-├── .env.example            # Environment template
+│   ├── schema.prisma            # Database schema
+│   └── seed.ts                  # Admin user seed
+├── middleware.ts                # Route protection (redirects unauthenticated users)
+├── .env.example
 ├── package.json
 └── README.md
 ```
+
+## Codebase Overview
+
+### Architecture
+
+The app follows the **Next.js 14 App Router** pattern:
+
+- **Server Components** fetch data from the database and pass it as props to Client Components
+- **Client Components** (`'use client'`) handle all animation, interactivity, and local state
+- **Server Actions** (`'use server'`) in `actions.ts` handle all database mutations — no separate API routes needed
+- **Prisma ORM** provides type-safe database access; migrations live in `prisma/migrations/`
+
+### Data Model (key tables)
+
+| Table | Purpose |
+|---|---|
+| `User` | Teachers — owns classes |
+| `Class` | A course with metadata (name, room, code, timing) |
+| `Student` | A student belonging to a class; optionally assigned to a team |
+| `Team` | A colour-coded group of students within a class |
+| `ColdCall` | A record of each spin — stores `studentId`, optional `teamId`, timestamp, and optional score |
+
+A `ColdCall` row is created on every spin (individual or team). Team spins populate both `studentId` and `teamId`.
+
+### Key Components
+
+#### `ClassDetail.tsx`
+The main hub for a class. Renders four tabs — Cold Call, History, Teams, Stats — plus the header buttons (Present, Start/End Session). Reads session state from `localStorage` on mount so the session counter stays in sync after returning from presentation mode.
+
+#### `PresentationView.tsx`
+Full-screen animated spinner. Supports two modes driven by `animationPhase`:
+
+```
+idle → team → team_pause → student → done   (team spin)
+idle → (isSpinning=true) → idle             (individual spin)
+```
+
+Session awareness: on mount it reads `ccr-session-{classId}` from `localStorage`. The `spinEligibleTeams` list excludes already-called team IDs. After each team spin lands, the called team ID is appended to `localStorage`. The team grid only shows `spinEligibleTeams` during the animation so already-called teams are visually absent.
+
+After a team spin completes (`animationPhase === 'done'`), the view stays on the selected team's member grid (winner highlighted) rather than reverting to the full student list.
+
+#### `SlotMachine.tsx`
+Simpler tab-embedded version of the individual spinner. Same animation logic but no team support and no fullscreen.
+
+#### `TeamsTab.tsx`
+Team management UI. Offers two views:
+- **List view**: fastest for bulk edits — dropdown assignment per student
+- **Board view**: drag-and-drop via `@dnd-kit` — visual columns per team
+
+Auto-distribute uses a Fisher-Yates shuffle then round-robin assigns unassigned students across teams.
+
+#### `actions.ts`
+All server-side business logic:
+- `spinSlotMachineAction(classId)` — picks a random student, creates a `ColdCall`
+- `spinTeamColdCallAction(classId, excludeTeamIds?)` — picks from teams not in `excludeTeamIds`, picks a member, creates a `ColdCall` with `teamId`
+- `createTeamAction`, `updateTeamAction`, `deleteTeamAction` — team CRUD
+- `assignStudentToTeamAction` — moves one student to a team
+- `autoDistributeStudentsAction` — Fisher-Yates + round-robin bulk assignment
+- `updateColdCallScoreAction` — writes score for a past cold call
+
+### Session Mode — How It Works
+
+Session state lives entirely in the browser in `localStorage` under the key `ccr-session-{classId}`:
+
+```json
+{ "active": true, "calledTeamIds": ["id1", "id2"] }
+```
+
+- **ClassDetail** writes to this key (Start/End Session) and reads it on mount to show the counter
+- **PresentationView** reads it on mount, filters `spinEligibleTeams`, and appends to `calledTeamIds` after each team spin
+- **Server action** receives `excludeTeamIds` and applies a `notIn` filter at the database level — so even if client state were stale, the server would not re-pick an excluded team
+
+### Animation Architecture
+
+Both spinners follow the same pattern:
+
+1. Start a rapid looping `setTimeout` chain that sets a `highlightedIndex` state on each tick (visual "hopping")
+2. Fire the server action **in parallel** (not awaiting before animation starts)
+3. When the server result arrives, wait for the current animation cycle to finish, then run 5 final slowing hops that land on the winning index
+4. Set the selected state, fire confetti, call `router.refresh()` after 2 s to update history
+
+All timeouts are tracked via `animationRef` (a `useRef`) and cleared on component unmount.
 
 ## Manual Test Plan
 
@@ -318,10 +431,7 @@ cold-call-randomizer/
 
 - [ ] Create a new class with CSV upload
 - [ ] Create a new class with manual student entry
-- [ ] Create a class with both CSV and manual students
 - [ ] View all classes on home page
-- [ ] Verify student count is correct for each class
-- [ ] Upload malformed CSV (should show error)
 - [ ] Edit an existing class
 - [ ] Change class status to Archived
 - [ ] Add students to an existing class via CSV
@@ -330,31 +440,49 @@ cold-call-randomizer/
 ### Cold Call Tests
 
 - [ ] Verify all students appear in the grid layout
-- [ ] Click "Spin & Pick" to start the animation
-- [ ] Verify cell-hopping animation highlights random cells
+- [ ] Click "Spin & Pick" and verify cell-hopping animation
 - [ ] Verify animation slows down before final selection
-- [ ] Verify selected student's cell turns green
-- [ ] Verify confetti animation appears
-- [ ] Verify selected student banner appears
+- [ ] Verify selected student's cell turns green and confetti appears
 - [ ] Verify selection is saved to history
-- [ ] Spin multiple times and verify randomness
+
+### Team Tests
+
+- [ ] Create a team with a name and colour
+- [ ] Assign a student to a team via list view dropdown
+- [ ] Reassign a student to a different team
+- [ ] Drag and drop a student in board view
+- [ ] Auto-distribute unassigned students across teams
+- [ ] Delete a team (students should become unassigned)
+
+### Presentation Mode Tests
+
+- [ ] Open presentation mode and verify full-screen layout
+- [ ] Run individual SPIN — animation lands on a student
+- [ ] Run TEAM SPIN — animation cycles through teams then team members
+- [ ] Verify after team spin, the view stays on the team member grid (not the full student list)
+- [ ] Toggle F11 fullscreen
+
+### Session Mode Tests
+
+- [ ] Start Session button only appears when at least one team has students
+- [ ] Click Start Session — button changes to End Session (0/N)
+- [ ] Open presentation mode — TEAM SPIN counter shows "Session: 0/N teams"
+- [ ] Spin a team — that team is excluded from subsequent spins
+- [ ] End Session — counter resets and all teams become eligible again
+- [ ] After all teams are called, TEAM SPIN button shows "All Teams Called" and is disabled
 
 ### Scoring Tests
 
 - [ ] Score a cold call with -2, -1, 0, +1, +2
 - [ ] Verify score button highlights immediately on click
 - [ ] Change an existing score
-- [ ] Clear a score using the Clear button
-- [ ] Verify scores persist after switching tabs
-- [ ] Verify scores persist after page refresh (auto-save)
+- [ ] Verify scores persist after page refresh
 
 ### Statistics Tests
 
 - [ ] View stats page
-- [ ] Verify cumulative scores are correct
-- [ ] Verify average scores are correct
-- [ ] Verify times called count is correct
-- [ ] Verify last called date is accurate
+- [ ] Verify cumulative and average scores are correct
+- [ ] Verify times-called count is correct
 
 ## Security Considerations
 
@@ -368,8 +496,6 @@ cold-call-randomizer/
 
 ### Database Issues
 
-If you encounter database errors, try:
-
 ```bash
 npx prisma generate
 npx prisma migrate reset
@@ -378,18 +504,15 @@ npm run prisma:seed
 
 ### Port Already in Use
 
-If port 3000 is already in use:
-
 ```bash
 PORT=3001 npm run dev
 ```
 
 ### SMTP Not Working
 
-Check your SMTP credentials and ensure:
-- You're using an App Password (for Gmail)
-- The SMTP port is correct (587 for TLS, 465 for SSL)
-- Your firewall allows outbound connections
+- Use an App Password for Gmail
+- Check the SMTP port (587 for TLS, 465 for SSL)
+- Ensure your firewall allows outbound SMTP connections
 
 ## License
 
