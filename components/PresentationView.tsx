@@ -76,7 +76,7 @@ export function PresentationView({ classId, className, students, teams }: Presen
     : false;
   // Simpler: derive "currently showing teams grid" from phase
   const showingTeams = animationPhase === 'team' || animationPhase === 'team_pause';
-  const showingMembers = animationPhase === 'student';
+  const showingMembers = animationPhase === 'student' || (animationPhase === 'done' && !!selectedTeam);
   const isAnySpinning = isSpinning || animationPhase === 'team' || animationPhase === 'team_pause' || animationPhase === 'student';
 
   // Fire confetti
