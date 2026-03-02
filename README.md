@@ -9,14 +9,17 @@ A web application for professors to manage classes, randomly select students for
 - **Class Management**: Create, edit, and manage multiple classes with student rosters
 - **CSV Import**: Bulk upload students via CSV files
 - **Add Students Anytime**: Add students to existing classes via CSV or manual entry
-- **Grid-Based Random Picker**: Students displayed in a grid with cell-hopping animation that randomly highlights names before landing on the selection
+- **Grid-Based Random Picker**: Full-screen cell-hopping animation that randomly highlights names before landing on the selection — only available in presentation mode
+- **Mode Selection**: Choose between Individual Spin or Team Spin each time you enter presentation mode
 - **Confetti Celebration**: Celebratory confetti animation when a student is selected
 - **Call History**: Track all cold calls with timestamps
 - **Student Scoring**: Rate student performance from -2 to +2 with instant local updates and auto-save
 - **Statistics Dashboard**: View cumulative scores, average scores, and call frequency per student
 - **Team Management**: Create colour-coded teams, assign students via drag-and-drop or list view, and auto-distribute students evenly
-- **Full-Screen Presentation Mode**: Distraction-free presenter view with animated team and individual cold-call spinners
-- **Session Mode**: Start a session to ensure every team is cold-called exactly once before any team is repeated
+- **Full-Screen Presentation Mode**: Distraction-free presenter view with animated team and individual cold-call spinners; mode locked at launch for a focused experience
+- **Full-Screen Team Reveal**: When a team is picked, a large animated overlay displays the team name before the member spin begins
+- **Test Mode**: Individual spin can run without saving to history — useful for demonstrations
+- **Session Mode**: Ensure every team is cold-called exactly once per session; Start/End Session controls available both on the class detail page and inside presentation mode
 - **Material Design UI**: Clean, professional interface built with Material UI (MUI)
 
 ## Tech Stack
@@ -166,16 +169,6 @@ Jane Smith,js5678
 Bob Johnson,bj9012
 ```
 
-### Using the Cold Call Feature (Tab View)
-
-1. Click on a class from the home page
-2. Go to the "Cold Call" tab
-3. All students are displayed in a compact grid
-4. Click "Spin & Pick" to randomly select a student
-5. The grid animates with cells randomly highlighting
-6. The animation slows down and lands on the selected student
-7. Confetti celebration appears and the selection is saved to history
-
 ### Using Teams
 
 1. Navigate to the **Teams** tab on the class detail page
@@ -187,27 +180,46 @@ Bob Johnson,bj9012
 
 ### Presentation Mode
 
-Click **Present** on the class detail page to enter full-screen presentation mode. Two spin modes are available:
+Click **Present** on the class detail page. A dialog appears asking which mode to use:
 
-- **SPIN** — Picks a random individual student from the whole class
-- **TEAM SPIN** — First picks a random team (with a team-card animation), then picks a random member from that team
+- **Individual Spin** — Picks a random student from the whole class
+- **Team Spin** — First picks a random team, then picks a random member from that team
 
-After a team spin, the display stays on the selected team's member grid with the winner highlighted — it does not return to the full student list until the next spin begins.
+The mode is locked for the duration of that presentation session, and only the relevant controls are shown.
 
 Press **F11** or use the fullscreen icon to toggle native fullscreen.
 
+#### Individual Spin
+
+- A student grid fills the screen; cells hop rapidly before landing on the winner
+- A **Test mode (no save)** toggle in the bottom bar lets you run practice spins without writing anything to history
+- Winner is shown in a large banner; the grid cell stays highlighted until the next spin
+
+#### Team Spin
+
+- The team grid animates, then a **full-screen overlay** reveals the selected team name in large text before transitioning to the member spin
+- After the member spin, the display stays on the selected team's member grid with the winner highlighted — it does not revert to a list of all students
+- Winner banner shows the team name and student name prominently
+
 ### Session Mode
 
-Session mode ensures every team gets exactly one cold call before any team is repeated within a class session.
+Session mode ensures every team gets exactly one cold call before any team is repeated.
 
-1. On the class detail page, click **Start Session** (only visible when teams with students exist)
-2. The button changes to **End Session (X/Y)** showing how many teams have been called vs total
-3. Open Presentation Mode and use **TEAM SPIN** — already-called teams are automatically excluded from the spin
-4. In presentation mode a **Session: X/Y teams** counter is shown in the bottom bar
-5. Once all teams have been called, the TEAM SPIN button shows **All Teams Called** and is disabled
-6. Click **End Session** on the class detail page to reset and allow all teams to be picked again
+**Starting a session:**
+- On the class detail page, click **Start Session** (only visible when teams with students exist), or
+- Inside presentation (Team Spin), click **Start Session** in the bottom bar
 
-> Session state is stored in the browser (`localStorage`) and persists across navigation within the same browser session.
+**During a session:**
+- Already-called teams are greyed out and crossed through on the idle team grid
+- The bottom bar shows **Session: X/Y teams** in green
+- Already-called teams are excluded from the TEAM SPIN at both the client and server level
+- Once all teams have been called, the button shows **All Teams Called** and is disabled
+
+**Ending a session:**
+- Click **End Session (X/Y)** on the class detail page or in the presentation bottom bar
+- All teams become eligible again immediately
+
+> Session state is stored in the browser (`localStorage`) under the key `ccr-session-{classId}` and persists across navigation within the same browser session.
 
 ### Scoring Students
 
@@ -309,9 +321,9 @@ cold-call-randomizer/
 │   ├── layout.tsx
 │   └── globals.css
 ├── components/                  # Client components
-│   ├── ClassDetail.tsx          # Class detail page with tabs + session controls
-│   ├── PresentationView.tsx     # Full-screen animated spinner (individual + team)
-│   ├── SlotMachine.tsx          # Tab-embedded individual cold-call picker
+│   ├── ClassDetail.tsx          # Class detail (History/Teams/Stats tabs) + session controls + mode dialog
+│   ├── PresentationView.tsx     # Full-screen spinner — individual mode, team mode, session, test mode
+│   ├── SlotMachine.tsx          # (legacy — no longer rendered, kept for reference)
 │   ├── TeamsTab.tsx             # Team CRUD, drag-and-drop, auto-distribute
 │   ├── HistoryTab.tsx           # Cold call history with inline scoring
 │   ├── StatsPage.tsx            # Statistics table
@@ -359,33 +371,44 @@ A `ColdCall` row is created on every spin (individual or team). Team spins popul
 ### Key Components
 
 #### `ClassDetail.tsx`
-The main hub for a class. Renders four tabs — Cold Call, History, Teams, Stats — plus the header buttons (Present, Start/End Session). Reads session state from `localStorage` on mount so the session counter stays in sync after returning from presentation mode.
+The main hub for a class. Renders three tabs — History, Teams, Stats — plus header buttons (Present, Start/End Session).
+
+- Clicking **Present** opens a mode-selection dialog (Individual Spin / Team Spin) before navigating to `/present?mode=...`
+- Start/End Session buttons appear only when teams with students exist
+- Reads session state from `localStorage` on mount so the counter stays in sync after returning from presentation mode
 
 #### `PresentationView.tsx`
-Full-screen animated spinner. Supports two modes driven by `animationPhase`:
+Full-screen animated spinner. Receives `initialMode` (`'individual'` | `'team'`) from the URL and locks into that mode for the session.
 
+**Team spin phase machine:**
 ```
-idle → team → team_pause → student → done   (team spin)
-idle → (isSpinning=true) → idle             (individual spin)
+idle → team → team_pause → student → done
 ```
 
-Session awareness: on mount it reads `ccr-session-{classId}` from `localStorage`. The `spinEligibleTeams` list excludes already-called team IDs. After each team spin lands, the called team ID is appended to `localStorage`. The team grid only shows `spinEligibleTeams` during the animation so already-called teams are visually absent.
+- `team` — team card grid hops rapidly
+- `team_pause` — **full-screen team reveal overlay** (1800 ms) springs in with the team name at up to 8 rem before transitioning to member spin
+- `student` — member grid of the selected team hops
+- `done` — member grid stays visible with winner highlighted; large winner banner shown
 
-After a team spin completes (`animationPhase === 'done'`), the view stays on the selected team's member grid (winner highlighted) rather than reverting to the full student list.
+**Individual spin:**
+```
+idle → (isSpinning=true) → idle
+```
+A **Test mode** toggle in the bottom bar passes `testMode=true` to the server action, skipping the DB write. The winner banner notes "not saved".
 
-#### `SlotMachine.tsx`
-Simpler tab-embedded version of the individual spinner. Same animation logic but no team support and no fullscreen.
+**Session awareness:**
+On mount, reads `ccr-session-{classId}` from `localStorage`. `spinEligibleTeams` excludes already-called team IDs. In idle state, the team grid shows all eligible teams with called ones greyed out. After each team spin, the called team ID is appended to `localStorage`. Start/End Session buttons are also available directly in the presentation bottom bar.
 
 #### `TeamsTab.tsx`
-Team management UI. Offers two views:
-- **List view**: fastest for bulk edits — dropdown assignment per student
+Team management UI with two views:
+- **List view**: dropdown assignment per student
 - **Board view**: drag-and-drop via `@dnd-kit` — visual columns per team
 
-Auto-distribute uses a Fisher-Yates shuffle then round-robin assigns unassigned students across teams.
+Auto-distribute uses Fisher-Yates shuffle then round-robin assignment.
 
 #### `actions.ts`
 All server-side business logic:
-- `spinSlotMachineAction(classId)` — picks a random student, creates a `ColdCall`
+- `spinSlotMachineAction(classId, testMode?)` — picks a random student; skips `ColdCall` creation when `testMode=true`
 - `spinTeamColdCallAction(classId, excludeTeamIds?)` — picks from teams not in `excludeTeamIds`, picks a member, creates a `ColdCall` with `teamId`
 - `createTeamAction`, `updateTeamAction`, `deleteTeamAction` — team CRUD
 - `assignStudentToTeamAction` — moves one student to a team
@@ -400,9 +423,9 @@ Session state lives entirely in the browser in `localStorage` under the key `ccr
 { "active": true, "calledTeamIds": ["id1", "id2"] }
 ```
 
-- **ClassDetail** writes to this key (Start/End Session) and reads it on mount to show the counter
-- **PresentationView** reads it on mount, filters `spinEligibleTeams`, and appends to `calledTeamIds` after each team spin
-- **Server action** receives `excludeTeamIds` and applies a `notIn` filter at the database level — so even if client state were stale, the server would not re-pick an excluded team
+- **ClassDetail** writes to this key (Start/End Session buttons) and reads it on mount to show the counter
+- **PresentationView** reads it on mount, exposes its own Start/End Session buttons, filters `spinEligibleTeams`, and appends to `calledTeamIds` after each team spin
+- **Server action** receives `excludeTeamIds` and applies a `notIn` filter at the database level — so even if client state were stale, the server will not re-pick an excluded team
 
 ### Animation Architecture
 
@@ -411,7 +434,7 @@ Both spinners follow the same pattern:
 1. Start a rapid looping `setTimeout` chain that sets a `highlightedIndex` state on each tick (visual "hopping")
 2. Fire the server action **in parallel** (not awaiting before animation starts)
 3. When the server result arrives, wait for the current animation cycle to finish, then run 5 final slowing hops that land on the winning index
-4. Set the selected state, fire confetti, call `router.refresh()` after 2 s to update history
+4. Set the selected state, fire confetti, call `router.refresh()` after 2 s to update history (skipped in test mode)
 
 All timeouts are tracked via `animationRef` (a `useRef`) and cleared on component unmount.
 
@@ -437,14 +460,6 @@ All timeouts are tracked via `animationRef` (a `useRef`) and cleared on componen
 - [ ] Add students to an existing class via CSV
 - [ ] Add students to an existing class manually
 
-### Cold Call Tests
-
-- [ ] Verify all students appear in the grid layout
-- [ ] Click "Spin & Pick" and verify cell-hopping animation
-- [ ] Verify animation slows down before final selection
-- [ ] Verify selected student's cell turns green and confetti appears
-- [ ] Verify selection is saved to history
-
 ### Team Tests
 
 - [ ] Create a team with a name and colour
@@ -456,20 +471,27 @@ All timeouts are tracked via `animationRef` (a `useRef`) and cleared on componen
 
 ### Presentation Mode Tests
 
-- [ ] Open presentation mode and verify full-screen layout
-- [ ] Run individual SPIN — animation lands on a student
-- [ ] Run TEAM SPIN — animation cycles through teams then team members
-- [ ] Verify after team spin, the view stays on the team member grid (not the full student list)
+- [ ] Click Present — mode-selection dialog appears with Individual Spin and Team Spin options
+- [ ] Team Spin option disabled in dialog when no teams have students
+- [ ] Individual Spin: animation lands on a student, selection saved to history
+- [ ] Individual Spin: enable Test mode — spin completes but nothing appears in history
+- [ ] Individual Spin: Test mode banner shows "not saved"
+- [ ] Team Spin: team card grid animates, then full-screen team reveal overlay appears
+- [ ] Team reveal overlay shows team name in large text and fades to member spin
+- [ ] After team spin, the view stays on the team member grid (not the full student list)
+- [ ] Winner banner shows team name prominently above the large student name
 - [ ] Toggle F11 fullscreen
 
 ### Session Mode Tests
 
-- [ ] Start Session button only appears when at least one team has students
-- [ ] Click Start Session — button changes to End Session (0/N)
-- [ ] Open presentation mode — TEAM SPIN counter shows "Session: 0/N teams"
-- [ ] Spin a team — that team is excluded from subsequent spins
-- [ ] End Session — counter resets and all teams become eligible again
+- [ ] Start Session button only appears on class detail when at least one team has students
+- [ ] Click Start Session on class detail — button changes to End Session (0/N)
+- [ ] Open Team Spin presentation — Start Session button also visible in bottom bar
+- [ ] Spin a team — that team is greyed out on the idle grid and excluded from subsequent spins
+- [ ] Session counter shows "Session: X/Y teams" in the bottom bar
+- [ ] End Session from presentation — all teams become eligible again immediately
 - [ ] After all teams are called, TEAM SPIN button shows "All Teams Called" and is disabled
+- [ ] End Session from class detail — counter resets
 
 ### Scoring Tests
 
