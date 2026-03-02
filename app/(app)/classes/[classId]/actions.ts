@@ -185,7 +185,7 @@ export async function spinTeamColdCallAction(classId: string, excludeTeamIds: st
 
 // ── Individual spin ────────────────────────────────────────────────────────
 
-export async function spinSlotMachineAction(classId: string) {
+export async function spinSlotMachineAction(classId: string, testMode = false) {
   const session = await requireAuth();
 
   try {
@@ -210,17 +210,19 @@ export async function spinSlotMachineAction(classId: string) {
       return { error: 'No students in this class' };
     }
 
-    // Randomly select a student using crypto for better randomness
+    // Randomly select a student
     const randomIndex = Math.floor(Math.random() * students.length);
     const selectedStudent = students[randomIndex];
 
-    // Create a cold call record
-    await prisma.coldCall.create({
-      data: {
-        classId,
-        studentId: selectedStudent.id,
-      },
-    });
+    // Skip DB write in test mode
+    if (!testMode) {
+      await prisma.coldCall.create({
+        data: {
+          classId,
+          studentId: selectedStudent.id,
+        },
+      });
+    }
 
     return {
       student: {

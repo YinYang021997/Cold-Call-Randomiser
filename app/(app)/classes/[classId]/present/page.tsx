@@ -5,7 +5,13 @@ import { PresentationView } from '@/components/PresentationView';
 
 export const dynamic = 'force-dynamic';
 
-export default async function PresentPage({ params }: { params: { classId: string } }) {
+export default async function PresentPage({
+  params,
+  searchParams,
+}: {
+  params: { classId: string };
+  searchParams: { mode?: string };
+}) {
   await requireAuth();
 
   const classData = await prisma.class.findUnique({
@@ -28,10 +34,13 @@ export default async function PresentPage({ params }: { params: { classId: strin
     notFound();
   }
 
+  const initialMode = searchParams.mode === 'team' ? 'team' : 'individual';
+
   return (
     <PresentationView
       classId={classData.id}
       className={classData.name}
+      initialMode={initialMode}
       students={classData.students.map(s => ({
         id: s.id,
         name: s.name,

@@ -15,20 +15,23 @@ import {
   CircularProgress,
   Backdrop,
   Grid,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
   Edit as EditIcon,
   PersonAdd as PersonAddIcon,
-  Casino as CasinoIcon,
   History as HistoryIcon,
   Analytics as AnalyticsIcon,
   Slideshow as SlideshowIcon,
   Group as GroupIcon,
+  Person as PersonIcon,
   PlayCircle as PlayCircleIcon,
   StopCircle as StopCircleIcon,
 } from '@mui/icons-material';
-import { SlotMachine } from './SlotMachine';
 import { HistoryTab } from './HistoryTab';
 import { TeamsTab } from './TeamsTab';
 
@@ -75,6 +78,7 @@ export function ClassDetail({ classData }: ClassDetailProps) {
   const [activeTab, setActiveTab] = useState(0);
   const [navigating, setNavigating] = useState(false);
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
+  const [presentDialogOpen, setPresentDialogOpen] = useState(false);
   const router = useRouter();
 
   const sessionKey = `ccr-session-${classData.id}`;
@@ -103,9 +107,9 @@ export function ClassDetail({ classData }: ClassDetailProps) {
     setCalledTeamCount(0);
   };
 
+  // Tabs: History=0, Teams=1, Stats=2
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    if (newValue === 3) {
-      // Stats tab — navigate to stats page
+    if (newValue === 2) {
       setNavigating(true);
       setNavigatingTo('stats');
       router.push(`/classes/${classData.id}/stats`);
@@ -120,6 +124,11 @@ export function ClassDetail({ classData }: ClassDetailProps) {
     router.push(path);
   };
 
+  const handlePresentMode = (mode: 'individual' | 'team') => {
+    setPresentDialogOpen(false);
+    handleNavigation('present', `/classes/${classData.id}/present?mode=${mode}`);
+  };
+
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', py: 4 }}>
       <Backdrop
@@ -128,6 +137,53 @@ export function ClassDetail({ classData }: ClassDetailProps) {
       >
         <CircularProgress color="inherit" />
       </Backdrop>
+
+      {/* Mode selection dialog */}
+      <Dialog open={presentDialogOpen} onClose={() => setPresentDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ textAlign: 'center', fontWeight: 'bold' }}>
+          Choose Presentation Mode
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <Button
+              variant="contained"
+              size="large"
+              startIcon={<PersonIcon />}
+              onClick={() => handlePresentMode('individual')}
+              sx={{
+                py: 2,
+                background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e53 100%)',
+                '&:hover': { background: 'linear-gradient(135deg, #ff8e53 0%, #ff6b6b 100%)' },
+              }}
+            >
+              Individual Spin
+            </Button>
+            <Button
+              variant="contained"
+              size="large"
+              startIcon={<GroupIcon />}
+              onClick={() => handlePresentMode('team')}
+              disabled={eligibleTeamCount === 0}
+              sx={{
+                py: 2,
+                background: 'linear-gradient(135deg, #7c4dff 0%, #448aff 100%)',
+                '&:hover': { background: 'linear-gradient(135deg, #448aff 0%, #7c4dff 100%)' },
+                '&:disabled': { background: 'rgba(0,0,0,0.12)' },
+              }}
+            >
+              Team Spin
+              {eligibleTeamCount === 0 && (
+                <Typography variant="caption" sx={{ ml: 1, opacity: 0.7 }}>
+                  (no teams set up)
+                </Typography>
+              )}
+            </Button>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPresentDialogOpen(false)}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
 
       <Container maxWidth="xl">
         <Button
@@ -152,7 +208,7 @@ export function ClassDetail({ classData }: ClassDetailProps) {
                   size="small"
                 />
               </Box>
-              <Box sx={{ display: 'flex', gap: 2 }}>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 <Button
                   variant="outlined"
                   startIcon={navigatingTo === 'edit' ? <CircularProgress size={20} /> : <EditIcon />}
@@ -174,7 +230,7 @@ export function ClassDetail({ classData }: ClassDetailProps) {
                   variant="contained"
                   color="secondary"
                   startIcon={navigatingTo === 'present' ? <CircularProgress size={20} color="inherit" /> : <SlideshowIcon />}
-                  onClick={() => handleNavigation('present', `/classes/${classData.id}/present`)}
+                  onClick={() => setPresentDialogOpen(true)}
                   disabled={navigating}
                 >
                   Present
@@ -229,7 +285,6 @@ export function ClassDetail({ classData }: ClassDetailProps) {
         <Card elevation={3}>
           <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
             <Tabs value={activeTab} onChange={handleTabChange}>
-              <Tab icon={<CasinoIcon />} iconPosition="start" label="Cold Call" disabled={navigating} />
               <Tab icon={<HistoryIcon />} iconPosition="start" label="History" disabled={navigating} />
               <Tab icon={<GroupIcon />} iconPosition="start" label="Teams" disabled={navigating} />
               <Tab
@@ -243,14 +298,10 @@ export function ClassDetail({ classData }: ClassDetailProps) {
 
           <CardContent>
             {activeTab === 0 && (
-              <SlotMachine classId={classData.id} students={classData.students} />
-            )}
-
-            {activeTab === 1 && (
               <HistoryTab coldCalls={classData.coldCalls} />
             )}
 
-            {activeTab === 2 && (
+            {activeTab === 1 && (
               <TeamsTab
                 classId={classData.id}
                 students={classData.students}

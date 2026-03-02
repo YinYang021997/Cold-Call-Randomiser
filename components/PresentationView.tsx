@@ -10,6 +10,8 @@ import {
   IconButton,
   Alert,
   CircularProgress,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import {
   Casino as CasinoIcon,
@@ -17,6 +19,8 @@ import {
   Fullscreen as FullscreenIcon,
   FullscreenExit as FullscreenExitIcon,
   Group as GroupIcon,
+  PlayCircle as PlayCircleIcon,
+  StopCircle as StopCircleIcon,
 } from '@mui/icons-material';
 import { spinSlotMachineAction, spinTeamColdCallAction } from '@/app/(app)/classes/[classId]/actions';
 
@@ -36,6 +40,7 @@ interface Team {
 interface PresentationViewProps {
   classId: string;
   className: string;
+  initialMode: 'individual' | 'team';
   students: Student[];
   teams: Team[];
 }
@@ -48,11 +53,14 @@ function getDisplayName(name: string): string {
   return name.split(' ')[0];
 }
 
-export function PresentationView({ classId, className, students, teams }: PresentationViewProps) {
+export function PresentationView({ classId, className, initialMode, students, teams }: PresentationViewProps) {
+  const displayMode = initialMode; // locked to what was chosen at launch
+
   // ── Individual mode state ──────────────────────────────────────────────
   const [isSpinning, setIsSpinning] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
+  const [testMode, setTestMode] = useState(false);
 
   // ── Team mode state ────────────────────────────────────────────────────
   const [animationPhase, setAnimationPhase] = useState<AnimationPhase>('idle');
@@ -75,6 +83,18 @@ export function PresentationView({ classId, className, students, teams }: Presen
     }
   }, [sessionKey]);
 
+  const handleStartSession = () => {
+    localStorage.setItem(sessionKey, JSON.stringify({ active: true, calledTeamIds: [] }));
+    setSessionActive(true);
+    setCalledTeamIds([]);
+  };
+
+  const handleEndSession = () => {
+    localStorage.removeItem(sessionKey);
+    setSessionActive(false);
+    setCalledTeamIds([]);
+  };
+
   const [error, setError] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const router = useRouter();
@@ -88,13 +108,8 @@ export function PresentationView({ classId, className, students, teams }: Presen
     () => sessionActive ? eligibleTeams.filter(t => !calledTeamIds.includes(t.id)) : eligibleTeams,
     [sessionActive, calledTeamIds, eligibleTeams],
   );
-  const hasTeams = eligibleTeams.length > 0;
   const allTeamsCalledInSession = sessionActive && spinEligibleTeams.length === 0 && eligibleTeams.length > 0;
 
-  const isTeamMode = animationPhase !== 'idle' && animationPhase !== 'done'
-    ? true
-    : false;
-  // Simpler: derive "currently showing teams grid" from phase
   const showingTeams = animationPhase === 'team' || animationPhase === 'team_pause';
   const showingMembers = animationPhase === 'student' || (animationPhase === 'done' && !!selectedTeam);
   const isAnySpinning = isSpinning || animationPhase === 'team' || animationPhase === 'team_pause' || animationPhase === 'student';
@@ -162,9 +177,7 @@ export function PresentationView({ classId, className, students, teams }: Presen
     if (isAnySpinning || students.length === 0) return;
     setError('');
     setSelectedStudent(null);
-    setSelectedTeam(null);
-    setSelectedMember(null);
-    setAnimationPhase('idle');
+    setHighlightedIndex(null);
     setIsSpinning(true);
 
     try {
@@ -181,7 +194,7 @@ export function PresentationView({ classId, className, students, teams }: Presen
       };
       animateHop();
 
-      const result = await spinSlotMachineAction(classId);
+      const result = await spinSlotMachineAction(classId, testMode);
 
       if (result.error || !result.student) {
         setError(result.error || 'Failed to select a student');
@@ -209,7 +222,7 @@ export function PresentationView({ classId, className, students, teams }: Presen
             setSelectedStudent(result.student!);
             setIsSpinning(false);
             fireConfetti();
-            setTimeout(() => router.refresh(), 2000);
+            if (!testMode) setTimeout(() => router.refresh(), 2000);
           }
         };
         finalAnimation();
@@ -235,10 +248,8 @@ export function PresentationView({ classId, className, students, teams }: Presen
     setHighlightedTeamIndex(null);
     setHighlightedMemberIndex(null);
 
-    // Kick off server action first (runs in parallel with animation)
     const resultPromise = spinTeamColdCallAction(classId, sessionActive ? calledTeamIds : []);
 
-    // Phase 1: animate teams
     setAnimationPhase('team');
 
     let teamHopCount = 0;
@@ -268,7 +279,6 @@ export function PresentationView({ classId, className, students, teams }: Presen
       const winningTeamIndex = spinEligibleTeams.findIndex(t => t.id === result.team!.id);
       const winningTeam = spinEligibleTeams[winningTeamIndex];
 
-      // Wait for team animation to finish, then do final hops
       setTimeout(() => {
         if (animationRef.current) clearTimeout(animationRef.current);
 
@@ -277,17 +287,16 @@ export function PresentationView({ classId, className, students, teams }: Presen
 
         const finalTeamAnimation = () => {
           if (finalTeamHops < 5) {
-            setHighlightedTeamIndex(Math.floor(Math.random() * eligibleTeams.length));
+            setHighlightedTeamIndex(Math.floor(Math.random() * spinEligibleTeams.length));
             finalTeamHops++;
             finalTeamDelay += 110;
             animationRef.current = setTimeout(finalTeamAnimation, finalTeamDelay);
           } else {
-            // Land on the winning team
+            // Land on the winning team — show full-screen reveal for 1800ms
             setHighlightedTeamIndex(winningTeamIndex);
             setSelectedTeam(winningTeam);
             setAnimationPhase('team_pause');
 
-            // Pause 600ms to let the team selection sink in, then transition to members
             animationRef.current = setTimeout(() => {
               setAnimationPhase('student');
               setHighlightedTeamIndex(null);
@@ -307,7 +316,6 @@ export function PresentationView({ classId, className, students, teams }: Presen
               };
               animateMemberHop();
 
-              // Wait for member animation, then final member hops
               setTimeout(() => {
                 if (animationRef.current) clearTimeout(animationRef.current);
 
@@ -326,7 +334,6 @@ export function PresentationView({ classId, className, students, teams }: Presen
                     setSelectedMember(result.student!);
                     setAnimationPhase('done');
                     fireConfetti();
-                    // Update session: mark this team as called
                     if (sessionActive) {
                       const updated = [...calledTeamIds, result.team!.id];
                       setCalledTeamIds(updated);
@@ -338,7 +345,7 @@ export function PresentationView({ classId, className, students, teams }: Presen
                 finalMemberAnimation();
               }, totalMemberHops * 70);
 
-            }, 600);
+            }, 1800); // extended pause for full-screen reveal
           }
         };
         finalTeamAnimation();
@@ -359,10 +366,10 @@ export function PresentationView({ classId, className, students, teams }: Presen
 
   const rows = Math.ceil(students.length / cols);
 
-  // ── Determine what grid to render ────────────────────────────────────────
+  // ── Grids ─────────────────────────────────────────────────────────────────
 
   const renderGrid = () => {
-    // Team cold call — phase 1: show team cards
+    // Team mode — phase 1: show team cards (spinning)
     if (showingTeams) {
       const teamRows = Math.ceil(spinEligibleTeams.length / teamCols);
       return (
@@ -375,11 +382,10 @@ export function PresentationView({ classId, className, students, teams }: Presen
         }}>
           {spinEligibleTeams.map((team, idx) => {
             const isHighlighted = highlightedTeamIndex === idx;
-            const isSelected = selectedTeam?.id === team.id && animationPhase === 'team_pause';
             return (
               <Paper
                 key={team.id}
-                elevation={isHighlighted || isSelected ? 8 : 2}
+                elevation={isHighlighted ? 8 : 2}
                 sx={{
                   display: 'flex',
                   flexDirection: 'column',
@@ -391,29 +397,17 @@ export function PresentationView({ classId, className, students, teams }: Presen
                   pt: 1.25,
                   borderRadius: 2,
                   transition: 'all 0.09s ease-in-out',
-                  transform: isHighlighted || isSelected ? 'scale(1.06)' : 'scale(1)',
-                  bgcolor: isSelected
-                    ? team.color
-                    : isHighlighted
-                      ? `${team.color}cc`
-                      : `${team.color}22`,
-                  border: isSelected
-                    ? `3px solid ${team.color}`
-                    : isHighlighted
-                      ? `2px solid ${team.color}`
-                      : `1px solid ${team.color}44`,
-                  boxShadow: isSelected
-                    ? `0 0 24px ${team.color}88`
-                    : isHighlighted
-                      ? `0 0 16px ${team.color}66`
-                      : undefined,
+                  transform: isHighlighted ? 'scale(1.06)' : 'scale(1)',
+                  bgcolor: isHighlighted ? `${team.color}cc` : `${team.color}22`,
+                  border: isHighlighted ? `2px solid ${team.color}` : `1px solid ${team.color}44`,
+                  boxShadow: isHighlighted ? `0 0 16px ${team.color}66` : undefined,
                 }}
               >
                 <Typography
                   fontWeight="bold"
                   sx={{
-                    color: isSelected || isHighlighted ? '#fff' : team.color,
-                    fontSize: eligibleTeams.length > 6 ? '0.8rem' : '0.95rem',
+                    color: isHighlighted ? '#fff' : team.color,
+                    fontSize: spinEligibleTeams.length > 6 ? '0.8rem' : '0.95rem',
                     textAlign: 'center',
                     lineHeight: 1.2,
                     mb: 0.5,
@@ -426,10 +420,10 @@ export function PresentationView({ classId, className, students, teams }: Presen
                     <Typography
                       key={s.id}
                       sx={{
-                        fontSize: eligibleTeams.length > 8 ? '0.6rem' : '0.68rem',
+                        fontSize: spinEligibleTeams.length > 8 ? '0.6rem' : '0.68rem',
                         lineHeight: 1.3,
-                        color: isSelected || isHighlighted ? 'rgba(255,255,255,0.9)' : `${team.color}cc`,
-                        bgcolor: isSelected || isHighlighted ? 'rgba(255,255,255,0.15)' : `${team.color}18`,
+                        color: isHighlighted ? 'rgba(255,255,255,0.9)' : `${team.color}cc`,
+                        bgcolor: isHighlighted ? 'rgba(255,255,255,0.15)' : `${team.color}18`,
                         borderRadius: '3px',
                         px: 0.5,
                         py: 0.15,
@@ -446,7 +440,7 @@ export function PresentationView({ classId, className, students, teams }: Presen
       );
     }
 
-    // Team cold call — phase 2: show members of selected team
+    // Team mode — phase 2: show members of selected team (spinning or done)
     if (showingMembers && selectedTeam) {
       const members = selectedTeam.students;
       const mCols = memberCols;
@@ -461,10 +455,11 @@ export function PresentationView({ classId, className, students, teams }: Presen
         }}>
           {members.map((member, idx) => {
             const isHighlighted = highlightedMemberIndex === idx;
+            const isWinner = animationPhase === 'done' && selectedMember?.id === member.id;
             return (
               <Paper
                 key={member.id}
-                elevation={isHighlighted ? 6 : 1}
+                elevation={isHighlighted || isWinner ? 6 : 1}
                 sx={{
                   display: 'flex',
                   alignItems: 'center',
@@ -474,17 +469,17 @@ export function PresentationView({ classId, className, students, teams }: Presen
                   p: 0.75,
                   borderRadius: 1.5,
                   transition: 'all 0.09s ease-in-out',
-                  transform: isHighlighted ? 'scale(1.05)' : 'scale(1)',
-                  bgcolor: isHighlighted ? selectedTeam.color : `${selectedTeam.color}22`,
-                  color: isHighlighted ? '#fff' : selectedTeam.color,
-                  border: isHighlighted
+                  transform: isHighlighted || isWinner ? 'scale(1.05)' : 'scale(1)',
+                  bgcolor: isHighlighted || isWinner ? selectedTeam.color : `${selectedTeam.color}22`,
+                  color: isHighlighted || isWinner ? '#fff' : selectedTeam.color,
+                  border: isHighlighted || isWinner
                     ? `2px solid ${selectedTeam.color}`
                     : `1px solid ${selectedTeam.color}44`,
-                  boxShadow: isHighlighted ? `0 0 14px ${selectedTeam.color}66` : undefined,
+                  boxShadow: isHighlighted || isWinner ? `0 0 14px ${selectedTeam.color}66` : undefined,
                 }}
               >
                 <Typography
-                  fontWeight="medium"
+                  fontWeight={isWinner ? 'bold' : 'medium'}
                   sx={{
                     fontSize: members.length > 10 ? '0.8rem' : '0.95rem',
                     lineHeight: 1.15,
@@ -505,7 +500,84 @@ export function PresentationView({ classId, className, students, teams }: Presen
       );
     }
 
-    // Default: individual student grid (idle / done states for individual mode)
+    // Team mode — idle: show all eligible teams as a static grid
+    if (displayMode === 'team') {
+      if (eligibleTeams.length === 0) {
+        return (
+          <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Typography color="rgba(255,255,255,0.5)">No teams with students found.</Typography>
+          </Box>
+        );
+      }
+      const idleCols = Math.min(eligibleTeams.length, 5);
+      const idleRows = Math.ceil(eligibleTeams.length / idleCols);
+      return (
+        <Box sx={{
+          flex: 1,
+          display: 'grid',
+          gridTemplateColumns: `repeat(${idleCols}, 1fr)`,
+          gridTemplateRows: `repeat(${idleRows}, 1fr)`,
+          gap: 1,
+        }}>
+          {eligibleTeams.map((team) => {
+            const isCalled = calledTeamIds.includes(team.id);
+            return (
+              <Paper
+                key={team.id}
+                elevation={isCalled ? 0 : 2}
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'flex-start',
+                  overflow: 'hidden',
+                  minHeight: 0,
+                  p: 1,
+                  pt: 1.25,
+                  borderRadius: 2,
+                  bgcolor: isCalled ? 'rgba(255,255,255,0.04)' : `${team.color}22`,
+                  border: isCalled ? '1px solid rgba(255,255,255,0.08)' : `1px solid ${team.color}44`,
+                  opacity: isCalled ? 0.4 : 1,
+                }}
+              >
+                <Typography
+                  fontWeight="bold"
+                  sx={{
+                    color: isCalled ? 'rgba(255,255,255,0.4)' : team.color,
+                    fontSize: eligibleTeams.length > 6 ? '0.8rem' : '0.95rem',
+                    textAlign: 'center',
+                    lineHeight: 1.2,
+                    mb: 0.5,
+                    textDecoration: isCalled ? 'line-through' : 'none',
+                  }}
+                >
+                  {team.name}
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 0.4 }}>
+                  {team.students.map((s) => (
+                    <Typography
+                      key={s.id}
+                      sx={{
+                        fontSize: '0.68rem',
+                        lineHeight: 1.3,
+                        color: isCalled ? 'rgba(255,255,255,0.3)' : `${team.color}cc`,
+                        borderRadius: '3px',
+                        px: 0.5,
+                        py: 0.15,
+                      }}
+                    >
+                      {s.name.split(' ')[0]}
+                    </Typography>
+                  ))}
+                </Box>
+              </Paper>
+            );
+          })}
+        </Box>
+      );
+    }
+
+    // Individual mode: student grid
     return (
       <Box sx={{
         flex: 1,
@@ -560,58 +632,72 @@ export function PresentationView({ classId, className, students, teams }: Presen
     );
   };
 
-  // ── Winner banner content ─────────────────────────────────────────────────
+  // ── Winner banner ─────────────────────────────────────────────────────────
 
   const renderWinnerBanner = () => {
     // Team cold call winner
     if (animationPhase === 'done' && selectedTeam && selectedMember) {
       return (
         <Box sx={{
-          mx: 2, mt: 1, p: 1.5, borderRadius: 2, flexShrink: 0,
-          background: `linear-gradient(135deg, ${selectedTeam.color} 0%, ${selectedTeam.color}cc 100%)`,
+          mx: 2, mt: 1, p: 2.5, borderRadius: 2, flexShrink: 0,
+          background: `linear-gradient(135deg, ${selectedTeam.color} 0%, ${selectedTeam.color}bb 100%)`,
           textAlign: 'center',
-          boxShadow: `0 0 40px ${selectedTeam.color}66`,
+          boxShadow: `0 0 50px ${selectedTeam.color}88`,
           animation: 'pulse 1.5s ease-in-out infinite',
-          '@keyframes pulse': { '0%, 100%': { transform: 'scale(1)' }, '50%': { transform: 'scale(1.02)' } },
+          '@keyframes pulse': { '0%, 100%': { transform: 'scale(1)' }, '50%': { transform: 'scale(1.015)' } },
         }}>
-          <Typography variant="body2" color="rgba(255,255,255,0.85)" fontWeight="bold" sx={{ letterSpacing: 2, textTransform: 'uppercase' }}>
+          <Typography
+            sx={{
+              fontSize: '1.1rem',
+              fontWeight: 900,
+              color: 'rgba(255,255,255,0.95)',
+              letterSpacing: 4,
+              textTransform: 'uppercase',
+              mb: 0.5,
+            }}
+          >
             {selectedTeam.name}
           </Typography>
-          <Typography variant="h3" fontWeight="bold" color="white" sx={{ textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>
+          <Typography
+            sx={{
+              fontSize: 'clamp(2.2rem, 5vw, 4rem)',
+              fontWeight: 900,
+              color: 'white',
+              lineHeight: 1.1,
+              textShadow: '3px 3px 8px rgba(0,0,0,0.4)',
+            }}
+          >
             🎉 {selectedMember.name} 🎉
           </Typography>
         </Box>
       );
     }
 
-    // Team pause — show selected team name while transitioning
-    if (animationPhase === 'team_pause' && selectedTeam) {
-      return (
-        <Box sx={{
-          mx: 2, mt: 1, p: 1, borderRadius: 2, flexShrink: 0,
-          background: `linear-gradient(135deg, ${selectedTeam.color} 0%, ${selectedTeam.color}cc 100%)`,
-          textAlign: 'center',
-          boxShadow: `0 0 20px ${selectedTeam.color}55`,
-        }}>
-          <Typography variant="h5" fontWeight="bold" color="white">
-            Team: {selectedTeam.name} — picking a student…
-          </Typography>
-        </Box>
-      );
-    }
-
     // Individual winner
-    if (selectedStudent && !isSpinning && animationPhase === 'idle') {
+    if (selectedStudent && !isSpinning && displayMode === 'individual') {
       return (
         <Box sx={{
-          mx: 2, mt: 1, p: 1.5, borderRadius: 2, flexShrink: 0,
+          mx: 2, mt: 1, p: 2, borderRadius: 2, flexShrink: 0,
           background: 'linear-gradient(135deg, #4caf50 0%, #8bc34a 100%)',
           textAlign: 'center',
           boxShadow: '0 0 40px rgba(76, 175, 80, 0.5)',
           animation: 'pulse 1.5s ease-in-out infinite',
-          '@keyframes pulse': { '0%, 100%': { transform: 'scale(1)' }, '50%': { transform: 'scale(1.02)' } },
+          '@keyframes pulse': { '0%, 100%': { transform: 'scale(1)' }, '50%': { transform: 'scale(1.015)' } },
         }}>
-          <Typography variant="h3" fontWeight="bold" color="white" sx={{ textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>
+          {testMode && (
+            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.75)', letterSpacing: 2, textTransform: 'uppercase', display: 'block', mb: 0.25 }}>
+              Test Mode — not saved
+            </Typography>
+          )}
+          <Typography
+            sx={{
+              fontSize: 'clamp(2rem, 5vw, 3.5rem)',
+              fontWeight: 900,
+              color: 'white',
+              lineHeight: 1.1,
+              textShadow: '3px 3px 8px rgba(0,0,0,0.3)',
+            }}
+          >
             🎉 {selectedStudent.name} 🎉
           </Typography>
         </Box>
@@ -641,7 +727,23 @@ export function PresentationView({ classId, className, students, teams }: Presen
     >
       {/* Top Bar */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 0.75, borderBottom: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
-        <Typography variant="h6" fontWeight="bold" color="white">{className}</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography variant="h6" fontWeight="bold" color="white">{className}</Typography>
+          <Typography
+            variant="caption"
+            sx={{
+              px: 1, py: 0.25, borderRadius: 1,
+              bgcolor: displayMode === 'team' ? 'rgba(124,77,255,0.3)' : 'rgba(255,107,107,0.3)',
+              color: displayMode === 'team' ? '#b39dff' : '#ffb3b3',
+              fontWeight: 'bold',
+              letterSpacing: 1,
+              textTransform: 'uppercase',
+              fontSize: '0.65rem',
+            }}
+          >
+            {displayMode === 'team' ? 'Team Spin' : 'Individual Spin'}
+          </Typography>
+        </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <IconButton onClick={toggleFullscreen} sx={{ color: 'white' }} size="small">
             {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
@@ -654,11 +756,11 @@ export function PresentationView({ classId, className, students, teams }: Presen
 
       {error && <Alert severity="error" sx={{ mx: 2, mt: 1, flexShrink: 0 }}>{error}</Alert>}
 
-      {/* Winner / transition banner */}
+      {/* Winner banner */}
       {renderWinnerBanner()}
 
-      {/* Phase label when showing members */}
-      {showingMembers && selectedTeam && (
+      {/* Phase label when spinning members */}
+      {animationPhase === 'student' && selectedTeam && (
         <Box sx={{ mx: 2, mt: 0.5, flexShrink: 0, textAlign: 'center' }}>
           <Typography variant="body1" fontWeight="bold" sx={{ color: selectedTeam.color, letterSpacing: 1 }}>
             {selectedTeam.name.toUpperCase()}
@@ -666,76 +768,176 @@ export function PresentationView({ classId, className, students, teams }: Presen
         </Box>
       )}
 
-      {/* Main grid */}
-      <Box sx={{ flex: 1, overflow: 'hidden', p: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      {/* Main content area — relative so the team_pause overlay can cover it */}
+      <Box sx={{ flex: 1, overflow: 'hidden', p: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}>
         {renderGrid()}
+
+        {/* Full-screen team reveal overlay during team_pause */}
+        {animationPhase === 'team_pause' && selectedTeam && (
+          <Box sx={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 10,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: `linear-gradient(135deg, ${selectedTeam.color}ee 0%, ${selectedTeam.color}bb 100%)`,
+            animation: 'teamReveal 0.35s cubic-bezier(0.34,1.56,0.64,1)',
+            '@keyframes teamReveal': {
+              '0%': { opacity: 0, transform: 'scale(0.82)' },
+              '100%': { opacity: 1, transform: 'scale(1)' },
+            },
+          }}>
+            <Typography sx={{
+              fontSize: 'clamp(1rem, 2.5vw, 1.6rem)',
+              fontWeight: 700,
+              color: 'rgba(255,255,255,0.8)',
+              letterSpacing: 6,
+              textTransform: 'uppercase',
+              mb: 2,
+            }}>
+              Selected Team
+            </Typography>
+            <Typography sx={{
+              fontSize: 'clamp(3.5rem, 10vw, 8rem)',
+              fontWeight: 900,
+              color: 'white',
+              textAlign: 'center',
+              textShadow: '4px 4px 16px rgba(0,0,0,0.35)',
+              lineHeight: 1,
+              px: 2,
+            }}>
+              {selectedTeam.name}
+            </Typography>
+            <Typography sx={{
+              fontSize: 'clamp(0.9rem, 2vw, 1.3rem)',
+              color: 'rgba(255,255,255,0.75)',
+              mt: 3,
+              letterSpacing: 3,
+              textTransform: 'uppercase',
+            }}>
+              Picking a student…
+            </Typography>
+          </Box>
+        )}
       </Box>
 
       {/* Bottom Bar */}
       <Box sx={{
         px: 2, py: 1,
-        display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 3,
+        display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2,
         borderTop: '1px solid rgba(255,255,255,0.1)',
         bgcolor: 'rgba(0,0,0,0.2)',
         flexShrink: 0,
+        flexWrap: 'wrap',
       }}>
-        <Typography variant="body2" color="rgba(255,255,255,0.7)">
-          {students.length} students
-        </Typography>
+        {displayMode === 'individual' ? (
+          <>
+            <Button
+              variant="contained"
+              size="large"
+              onClick={handleSpin}
+              disabled={isAnySpinning || students.length === 0}
+              sx={{
+                px: 4, py: 1, fontSize: '1rem', fontWeight: 'bold', borderRadius: 2,
+                background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e53 100%)',
+                boxShadow: '0 4px 20px rgba(255,107,107,0.4)',
+                '&:hover': { background: 'linear-gradient(135deg, #ff8e53 0%, #ff6b6b 100%)' },
+                '&:disabled': { background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' },
+              }}
+              startIcon={isSpinning ? <CircularProgress size={20} color="inherit" /> : <CasinoIcon />}
+            >
+              {isSpinning ? 'Spinning…' : 'SPIN'}
+            </Button>
 
-        {/* Individual spin button */}
-        <Button
-          variant="contained"
-          size="large"
-          onClick={handleSpin}
-          disabled={isAnySpinning || students.length === 0}
-          sx={{
-            px: 4, py: 1, fontSize: '1rem', fontWeight: 'bold', borderRadius: 2,
-            background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e53 100%)',
-            boxShadow: '0 4px 20px rgba(255,107,107,0.4)',
-            '&:hover': { background: 'linear-gradient(135deg, #ff8e53 0%, #ff6b6b 100%)', boxShadow: '0 6px 30px rgba(255,107,107,0.6)' },
-            '&:disabled': { background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' },
-          }}
-          startIcon={isSpinning ? <CircularProgress size={20} color="inherit" /> : <CasinoIcon />}
-        >
-          {isSpinning ? 'Spinning…' : 'SPIN'}
-        </Button>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={testMode}
+                  onChange={(e) => setTestMode(e.target.checked)}
+                  size="small"
+                  sx={{
+                    '& .MuiSwitch-switchBase.Mui-checked': { color: '#ffb300' },
+                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#ffb300' },
+                  }}
+                />
+              }
+              label={
+                <Typography variant="caption" sx={{ color: testMode ? '#ffb300' : 'rgba(255,255,255,0.6)', fontWeight: testMode ? 'bold' : 'normal' }}>
+                  Test mode (no save)
+                </Typography>
+              }
+            />
+          </>
+        ) : (
+          <>
+            <Button
+              variant="contained"
+              size="large"
+              onClick={handleTeamSpin}
+              disabled={isAnySpinning || allTeamsCalledInSession}
+              sx={{
+                px: 4, py: 1, fontSize: '1rem', fontWeight: 'bold', borderRadius: 2,
+                background: 'linear-gradient(135deg, #7c4dff 0%, #448aff 100%)',
+                boxShadow: '0 4px 20px rgba(124,77,255,0.4)',
+                '&:hover': { background: 'linear-gradient(135deg, #448aff 0%, #7c4dff 100%)' },
+                '&:disabled': { background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' },
+              }}
+              startIcon={
+                (animationPhase === 'team' || animationPhase === 'team_pause' || animationPhase === 'student')
+                  ? <CircularProgress size={20} color="inherit" />
+                  : <GroupIcon />
+              }
+            >
+              {(animationPhase === 'team' || animationPhase === 'team_pause' || animationPhase === 'student')
+                ? 'Spinning…'
+                : allTeamsCalledInSession
+                  ? 'All Teams Called'
+                  : 'TEAM SPIN'}
+            </Button>
 
-        {/* Team spin button — only shown when teams exist */}
-        {hasTeams && (
-          <Button
-            variant="contained"
-            size="large"
-            onClick={handleTeamSpin}
-            disabled={isAnySpinning || allTeamsCalledInSession}
-            sx={{
-              px: 4, py: 1, fontSize: '1rem', fontWeight: 'bold', borderRadius: 2,
-              background: 'linear-gradient(135deg, #7c4dff 0%, #448aff 100%)',
-              boxShadow: '0 4px 20px rgba(124,77,255,0.4)',
-              '&:hover': { background: 'linear-gradient(135deg, #448aff 0%, #7c4dff 100%)', boxShadow: '0 6px 30px rgba(124,77,255,0.6)' },
-              '&:disabled': { background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' },
-            }}
-            startIcon={
-              (animationPhase === 'team' || animationPhase === 'team_pause' || animationPhase === 'student')
-                ? <CircularProgress size={20} color="inherit" />
-                : <GroupIcon />
-            }
-          >
-            {(animationPhase === 'team' || animationPhase === 'team_pause' || animationPhase === 'student')
-              ? 'Spinning…'
-              : allTeamsCalledInSession
-                ? 'All Teams Called'
-                : 'TEAM SPIN'}
-          </Button>
+            {sessionActive ? (
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<StopCircleIcon />}
+                onClick={handleEndSession}
+                disabled={isAnySpinning}
+                sx={{
+                  color: '#ff8a65', borderColor: '#ff8a65',
+                  '&:hover': { borderColor: '#ff5722', color: '#ff5722', bgcolor: 'rgba(255,87,34,0.08)' },
+                  '&:disabled': { color: 'rgba(255,255,255,0.3)', borderColor: 'rgba(255,255,255,0.1)' },
+                }}
+              >
+                End Session ({calledTeamIds.length}/{eligibleTeams.length})
+              </Button>
+            ) : (
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<PlayCircleIcon />}
+                onClick={handleStartSession}
+                disabled={isAnySpinning}
+                sx={{
+                  color: '#81c784', borderColor: '#81c784',
+                  '&:hover': { borderColor: '#4caf50', color: '#4caf50', bgcolor: 'rgba(76,175,80,0.08)' },
+                  '&:disabled': { color: 'rgba(255,255,255,0.3)', borderColor: 'rgba(255,255,255,0.1)' },
+                }}
+              >
+                Start Session
+              </Button>
+            )}
+
+            {sessionActive && (
+              <Typography variant="body2" sx={{ color: allTeamsCalledInSession ? '#ff8a65' : '#81c784', fontWeight: 'bold' }}>
+                Session: {calledTeamIds.length}/{eligibleTeams.length} teams
+              </Typography>
+            )}
+          </>
         )}
 
-        {sessionActive && hasTeams && (
-          <Typography variant="body2" sx={{ color: allTeamsCalledInSession ? '#ff8a65' : '#81c784', fontWeight: 'bold' }}>
-            Session: {calledTeamIds.length}/{eligibleTeams.length} teams
-          </Typography>
-        )}
-
-        <Typography variant="body2" color="rgba(255,255,255,0.7)">F11 fullscreen</Typography>
+        <Typography variant="body2" color="rgba(255,255,255,0.5)" sx={{ ml: 1 }}>F11 fullscreen</Typography>
       </Box>
     </Box>
   );
