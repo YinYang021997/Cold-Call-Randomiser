@@ -253,7 +253,7 @@ export function PresentationView({ classId, className, initialMode, students, te
     setAnimationPhase('team');
 
     let teamHopCount = 0;
-    const totalTeamHops = 25 + Math.floor(Math.random() * 15);
+    const totalTeamHops = 12 + Math.floor(Math.random() * 6);
     let teamDelay = 60;
 
     const animateTeamHop = () => {
@@ -283,13 +283,13 @@ export function PresentationView({ classId, className, initialMode, students, te
         if (animationRef.current) clearTimeout(animationRef.current);
 
         let finalTeamHops = 0;
-        let finalTeamDelay = 220;
+        let finalTeamDelay = 130;
 
         const finalTeamAnimation = () => {
           if (finalTeamHops < 5) {
             setHighlightedTeamIndex(Math.floor(Math.random() * spinEligibleTeams.length));
             finalTeamHops++;
-            finalTeamDelay += 110;
+            finalTeamDelay += 80;
             animationRef.current = setTimeout(finalTeamAnimation, finalTeamDelay);
           } else {
             // Land on the winning team — show full-screen reveal for 1800ms
@@ -303,7 +303,7 @@ export function PresentationView({ classId, className, initialMode, students, te
 
               const members = winningTeam.students;
               let memberHopCount = 0;
-              const totalMemberHops = 20 + Math.floor(Math.random() * 10);
+              const totalMemberHops = 10 + Math.floor(Math.random() * 5);
               let memberDelay = 70;
 
               const animateMemberHop = () => {
@@ -321,13 +321,13 @@ export function PresentationView({ classId, className, initialMode, students, te
 
                 const winningMemberIndex = members.findIndex(s => s.id === result.student!.id);
                 let finalMemberHops = 0;
-                let finalMemberDelay = 220;
+                let finalMemberDelay = 130;
 
                 const finalMemberAnimation = () => {
                   if (finalMemberHops < 5) {
                     setHighlightedMemberIndex(Math.floor(Math.random() * members.length));
                     finalMemberHops++;
-                    finalMemberDelay += 110;
+                    finalMemberDelay += 80;
                     animationRef.current = setTimeout(finalMemberAnimation, finalMemberDelay);
                   } else {
                     setHighlightedMemberIndex(winningMemberIndex);
@@ -343,13 +343,13 @@ export function PresentationView({ classId, className, initialMode, students, te
                   }
                 };
                 finalMemberAnimation();
-              }, totalMemberHops * 70);
+              }, totalMemberHops * 45);
 
             }, 1800); // extended pause for full-screen reveal
           }
         };
         finalTeamAnimation();
-      }, totalTeamHops * 70);
+      }, totalTeamHops * 45);
 
     } catch {
       setError('An error occurred. Please try again.');
