@@ -95,7 +95,7 @@ This command will:
 3. Seed the admin user
 
 **Default Admin Credentials:**
-- Email: `anmolbongirwar@gmail.com`
+- Email: `teacher@coldcall.app`
 - Password: `1234`
 
 ⚠️ **SECURITY WARNING**: The default password is `1234`. **Change this immediately** after first login for production use!
